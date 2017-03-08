@@ -15,6 +15,7 @@ public class MailService {
 
     private final ExecutorService mailExecutor = Executors.newFixedThreadPool(8);
 
+
     public GroupResult sendToList(final String template, final Set<String> emails) throws Exception {
         final CompletionService<MailResult> completionService = new ExecutorCompletionService<>(mailExecutor);
 
