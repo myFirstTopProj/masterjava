@@ -45,12 +45,15 @@ public class MainXml {
         System.out.println("nameProject = " + nameProject);
 
         final Payload payload = parse(Resources.getResource("data/payload.xml").openStream());
-        if (payload == null) {
-            System.out.println("payload is null");
+        if (payload == null)
             return;
-        }
+
         List<JAXBElement<List<Object>>> user = payload.getProjects().getProject().get(0).getGroup().get(0).getUsers().getUser();
-        Project project = payload.getProjects().getProject().stream().filter(t->t.getName().equalsIgnoreCase(nameProject)).findFirst().orElse(null);
+        Project project = payload.getProjects().getProject()
+                .stream()
+                .filter(t->t.getName().equalsIgnoreCase(nameProject))
+                .findFirst()
+                .orElse(null);
         if (project == null)
             return;
 
