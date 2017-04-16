@@ -1,0 +1,559 @@
+diff --git a/config_templates/logback-test.xml b/config_templates/logback-test.xml
+index b6815ab..739dd6d 100644
+--- a/config_templates/logback-test.xml
++++ b/config_templates/logback-test.xml
+@@ -12,6 +12,7 @@
+     </appender>
+ 
+     <logger name="ru.javaops.masterjava" level="debug"/>
++    <logger name="org.skife.jdbi" level="trace"/>
+ 
+     <root level="info">
+         <appender-ref ref="console"/>
+diff --git a/config_templates/sql/initDB.sql b/config_templates/sql/initDB.sql
+new file mode 100644
+index 0000000..888ba81
+--- /dev/null
++++ b/config_templates/sql/initDB.sql
+@@ -0,0 +1,15 @@
++DROP TABLE IF EXISTS users;
++DROP SEQUENCE IF EXISTS user_seq;
++DROP TYPE IF EXISTS user_flag;
++
++CREATE TYPE user_flag AS ENUM ('active', 'deleted', 'superuser');
++
++CREATE SEQUENCE user_seq START 100000;
++
++CREATE TABLE users (
++  id        INTEGER PRIMARY KEY DEFAULT nextval('user_seq'),
++  full_name TEXT NOT NULL,
++  email     TEXT NOT NULL,
++  flag      user_flag NOT NULL
++);
++
+diff --git a/persist/pom.xml b/persist/pom.xml
+new file mode 100644
+index 0000000..5816258
+--- /dev/null
++++ b/persist/pom.xml
+@@ -0,0 +1,46 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project xmlns="http://maven.apache.org/POM/4.0.0"
++         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++
++    <parent>
++        <groupId>ru.javaops</groupId>
++        <artifactId>parent</artifactId>
++        <relativePath>../parent/pom.xml</relativePath>
++        <version>1.0-SNAPSHOT</version>
++    </parent>
++
++    <artifactId>persist</artifactId>
++    <version>1.0-SNAPSHOT</version>
++    <name>Persist</name>
++
++    <dependencies>
++        <dependency>
++            <groupId>${project.groupId}</groupId>
++            <artifactId>common</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++        <dependency>
++            <groupId>org.jdbi</groupId>
++            <artifactId>jdbi</artifactId>
++            <version>2.78</version>
++        </dependency>
++        <dependency>
++            <groupId>com.bertoncelj.jdbi.entitymapper</groupId>
++            <artifactId>jdbi-entity-mapper</artifactId>
++            <version>1.0.0</version>
++            <exclusions>
++                <exclusion>
++                    <groupId>org.jdbi</groupId>
++                    <artifactId>jdbi</artifactId>
++                </exclusion>
++            </exclusions>
++        </dependency>
++        <dependency>
++            <groupId>org.postgresql</groupId>
++            <artifactId>postgresql</artifactId>
++            <version>9.4.1211</version>
++        </dependency>
++    </dependencies>
++</project>
+\ No newline at end of file
+diff --git a/persist/src/main/java/ru/javaops/masterjava/persist/DBIProvider.java b/persist/src/main/java/ru/javaops/masterjava/persist/DBIProvider.java
+new file mode 100644
+index 0000000..69904ce
+--- /dev/null
++++ b/persist/src/main/java/ru/javaops/masterjava/persist/DBIProvider.java
+@@ -0,0 +1,56 @@
++package ru.javaops.masterjava.persist;
++
++import org.skife.jdbi.v2.DBI;
++import org.skife.jdbi.v2.logging.SLF4JLog;
++import org.skife.jdbi.v2.tweak.ConnectionFactory;
++import org.slf4j.Logger;
++import ru.javaops.masterjava.persist.dao.AbstractDao;
++
++import javax.naming.InitialContext;
++import javax.sql.DataSource;
++
++import static org.slf4j.LoggerFactory.getLogger;
++
++/**
++ * gkislin
++ * 01.11.2016
++ */
++public class DBIProvider {
++    private static final Logger log = getLogger(DBIProvider.class);
++
++    private volatile static ConnectionFactory connectionFactory = null;
++
++    private static class DBIHolder {
++        static final DBI jDBI;
++
++        static {
++            final DBI dbi;
++            if (connectionFactory != null) {
++                log.info("Init jDBI with  connectionFactory");
++                dbi = new DBI(connectionFactory);
++            } else {
++                try {
++                    log.info("Init jDBI with  JNDI");
++                    InitialContext ctx = new InitialContext();
++                    dbi = new DBI((DataSource) ctx.lookup("java:/comp/env/jdbc/masterjava"));
++                } catch (Exception ex) {
++                    throw new IllegalStateException("PostgreSQL initialization failed", ex);
++                }
++            }
++            jDBI = dbi;
++            jDBI.setSQLLog(new SLF4JLog());
++        }
++    }
++
++    public static void init(ConnectionFactory connectionFactory) {
++        DBIProvider.connectionFactory = connectionFactory;
++    }
++
++    public static DBI getDBI() {
++        return DBIHolder.jDBI;
++    }
++
++    public static <T extends AbstractDao> T getDao(Class<T> daoClass) {
++        return DBIHolder.jDBI.onDemand(daoClass);
++    }
++}
+diff --git a/persist/src/main/java/ru/javaops/masterjava/persist/dao/AbstractDao.java b/persist/src/main/java/ru/javaops/masterjava/persist/dao/AbstractDao.java
+new file mode 100644
+index 0000000..f7e97e4
+--- /dev/null
++++ b/persist/src/main/java/ru/javaops/masterjava/persist/dao/AbstractDao.java
+@@ -0,0 +1,11 @@
++package ru.javaops.masterjava.persist.dao;
++
++/**
++ * gkislin
++ * 27.10.2016
++ * <p>
++ * <p>
++ */
++public interface AbstractDao {
++    void clean();
++}
+diff --git a/persist/src/main/java/ru/javaops/masterjava/persist/dao/UserDao.java b/persist/src/main/java/ru/javaops/masterjava/persist/dao/UserDao.java
+new file mode 100644
+index 0000000..915efdf
+--- /dev/null
++++ b/persist/src/main/java/ru/javaops/masterjava/persist/dao/UserDao.java
+@@ -0,0 +1,43 @@
++package ru.javaops.masterjava.persist.dao;
++
++import com.bertoncelj.jdbi.entitymapper.EntityMapperFactory;
++import org.skife.jdbi.v2.sqlobject.*;
++import org.skife.jdbi.v2.sqlobject.customizers.RegisterMapperFactory;
++import ru.javaops.masterjava.persist.model.User;
++
++import java.util.List;
++
++/**
++ * gkislin
++ * 27.10.2016
++ * <p>
++ * <p>
++ */
++@RegisterMapperFactory(EntityMapperFactory.class)
++public abstract class UserDao implements AbstractDao {
++
++    public User insert(User user) {
++        if (user.isNew()) {
++            int id = insertGeneratedId(user);
++            user.setId(id);
++        } else {
++            insertWitId(user);
++        }
++        return user;
++    }
++
++    @SqlUpdate("INSERT INTO users (full_name, email, flag) VALUES (:fullName, :email, CAST(:flag AS user_flag)) ")
++    @GetGeneratedKeys
++    abstract int insertGeneratedId(@BindBean User user);
++
++    @SqlUpdate("INSERT INTO users (id, full_name, email, flag) VALUES (:id, :fullName, :email, CAST(:flag AS user_flag)) ")
++    abstract void insertWitId(@BindBean User user);
++
++    @SqlQuery("SELECT * FROM users ORDER BY full_name, email LIMIT :it")
++    public abstract List<User> getWithLimit(@Bind int limit);
++
++    //   http://stackoverflow.com/questions/13223820/postgresql-delete-all-content
++    @SqlUpdate("TRUNCATE users")
++    @Override
++    public abstract void clean();
++}
+diff --git a/persist/src/main/java/ru/javaops/masterjava/persist/model/BaseEntity.java b/persist/src/main/java/ru/javaops/masterjava/persist/model/BaseEntity.java
+new file mode 100644
+index 0000000..c967068
+--- /dev/null
++++ b/persist/src/main/java/ru/javaops/masterjava/persist/model/BaseEntity.java
+@@ -0,0 +1,41 @@
++package ru.javaops.masterjava.persist.model;
++
++/**
++ * gkislin
++ * 28.10.2016
++ */
++abstract public class BaseEntity {
++    protected BaseEntity() {
++    }
++
++    protected BaseEntity(Integer id) {
++        this.id = id;
++    }
++
++    protected Integer id;
++
++    public Integer getId() {
++        return id;
++    }
++
++    protected void setId(Integer id) {
++        this.id = id;
++    }
++
++    public boolean isNew() {
++        return id == null;
++    }
++
++    @Override
++    public boolean equals(Object o) {
++        if (this == o) return true;
++        if (o == null || getClass() != o.getClass()) return false;
++        BaseEntity baseEntity = (BaseEntity) o;
++        return id != null && id.equals(baseEntity.id);
++    }
++
++    @Override
++    public int hashCode() {
++        return id == null ? 0 : id;
++    }
++}
+diff --git a/web/export/src/main/java/ru/javaops/masterjava/model/User.java b/persist/src/main/java/ru/javaops/masterjava/persist/model/User.java
+similarity index 69%
+rename from web/export/src/main/java/ru/javaops/masterjava/model/User.java
+rename to persist/src/main/java/ru/javaops/masterjava/persist/model/User.java
+index d7c3f8c..f4445cb 100644
+--- a/web/export/src/main/java/ru/javaops/masterjava/model/User.java
++++ b/persist/src/main/java/ru/javaops/masterjava/persist/model/User.java
+@@ -1,28 +1,31 @@
+-package ru.javaops.masterjava.model;
++package ru.javaops.masterjava.persist.model;
++
++import com.bertoncelj.jdbi.entitymapper.Column;
+ 
+ import java.util.Objects;
+ 
+-public class User {
+-    private final Integer id;
+-    private final String fullName;
+-    private final String email;
+-    private final UserFlag flag;
++public class User extends BaseEntity {
++    @Column("full_name")
++    private String fullName;
++
++    private String email;
++
++    private UserFlag flag;
++
++    public User() {
++    }
+ 
+     public User(String fullName, String email, UserFlag flag) {
+         this(null, fullName, email, flag);
+     }
+ 
+     public User(Integer id, String fullName, String email, UserFlag flag) {
+-        this.id = id;
++        super(id);
+         this.fullName = fullName;
+         this.email = email;
+         this.flag = flag;
+     }
+ 
+-    public Integer getId() {
+-        return id;
+-    }
+-
+     public String getFullName() {
+         return fullName;
+     }
+@@ -35,6 +38,22 @@ public class User {
+         return flag;
+     }
+ 
++    public void setId(Integer id) {
++        this.id = id;
++    }
++
++    public void setFullName(String fullName) {
++        this.fullName = fullName;
++    }
++
++    public void setEmail(String email) {
++        this.email = email;
++    }
++
++    public void setFlag(UserFlag flag) {
++        this.flag = flag;
++    }
++
+     @Override
+     public boolean equals(Object o) {
+         if (this == o) return true;
+@@ -60,4 +79,4 @@ public class User {
+                 ", flag=" + flag +
+                 ')';
+     }
+-}
++}
+\ No newline at end of file
+diff --git a/web/export/src/main/java/ru/javaops/masterjava/model/UserFlag.java b/persist/src/main/java/ru/javaops/masterjava/persist/model/UserFlag.java
+similarity index 68%
+rename from web/export/src/main/java/ru/javaops/masterjava/model/UserFlag.java
+rename to persist/src/main/java/ru/javaops/masterjava/persist/model/UserFlag.java
+index 603626a..bc2f691 100644
+--- a/web/export/src/main/java/ru/javaops/masterjava/model/UserFlag.java
++++ b/persist/src/main/java/ru/javaops/masterjava/persist/model/UserFlag.java
+@@ -1,4 +1,4 @@
+-package ru.javaops.masterjava.model;
++package ru.javaops.masterjava.persist.model;
+ 
+ /**
+  * gkislin
+diff --git a/persist/src/test/java/ru/javaops/masterjava/persist/DBITestProvider.java b/persist/src/test/java/ru/javaops/masterjava/persist/DBITestProvider.java
+new file mode 100644
+index 0000000..79467af
+--- /dev/null
++++ b/persist/src/test/java/ru/javaops/masterjava/persist/DBITestProvider.java
+@@ -0,0 +1,24 @@
++package ru.javaops.masterjava.persist;
++
++import java.sql.DriverManager;
++
++/**
++ * gkislin
++ * 27.10.2016
++ */
++public class DBITestProvider {
++    public static void initDBI() {
++        initDBI("jdbc:postgresql://localhost:5432/masterjava", "user", "password");
++    }
++
++    public static void initDBI(String dbUrl, String dbUser, String dbPassword) {
++        DBIProvider.init(() -> {
++            try {
++                Class.forName("org.postgresql.Driver");
++            } catch (ClassNotFoundException e) {
++                throw new IllegalStateException("PostgreSQL driver not found", e);
++            }
++            return DriverManager.getConnection(dbUrl, dbUser, dbPassword);
++        });
++    }
++}
+\ No newline at end of file
+diff --git a/persist/src/test/java/ru/javaops/masterjava/persist/UserTestData.java b/persist/src/test/java/ru/javaops/masterjava/persist/UserTestData.java
+new file mode 100644
+index 0000000..bc80bba
+--- /dev/null
++++ b/persist/src/test/java/ru/javaops/masterjava/persist/UserTestData.java
+@@ -0,0 +1,41 @@
++package ru.javaops.masterjava.persist;
++
++import com.google.common.collect.ImmutableList;
++import ru.javaops.masterjava.persist.dao.UserDao;
++import ru.javaops.masterjava.persist.model.User;
++import ru.javaops.masterjava.persist.model.UserFlag;
++
++import java.util.List;
++
++/**
++ * gkislin
++ * 14.11.2016
++ */
++public class UserTestData {
++    public static User ADMIN;
++    public static User DELETED;
++    public static User FULL_NAME;
++    public static User USER1;
++    public static User USER2;
++    public static User USER3;
++    public static List<User> FIST5_USERS;
++
++    public static void init() {
++        ADMIN = new User("Admin", "admin@javaops.ru", UserFlag.superuser);
++        DELETED = new User("Deleted", "deleted@yandex.ru", UserFlag.deleted);
++        FULL_NAME = new User("Full Name", "gmail@gmail.com", UserFlag.active);
++        USER1 = new User("User1", "user1@gmail.com", UserFlag.active);
++        USER2 = new User("User2", "user2@yandex.ru", UserFlag.active);
++        USER3 = new User("User3", "user3@yandex.ru", UserFlag.active);
++        FIST5_USERS = ImmutableList.of(ADMIN, DELETED, FULL_NAME, USER1, USER2);
++    }
++
++    public static void setUp() {
++        UserDao dao = DBIProvider.getDao(UserDao.class);
++        dao.clean();
++        DBIProvider.getDBI().useTransaction((conn, status) -> {
++            FIST5_USERS.forEach(dao::insert);
++            dao.insert(USER3);
++        });
++    }
++}
+diff --git a/persist/src/test/java/ru/javaops/masterjava/persist/dao/AbstractDaoTest.java b/persist/src/test/java/ru/javaops/masterjava/persist/dao/AbstractDaoTest.java
+new file mode 100644
+index 0000000..76ceb14
+--- /dev/null
++++ b/persist/src/test/java/ru/javaops/masterjava/persist/dao/AbstractDaoTest.java
+@@ -0,0 +1,20 @@
++package ru.javaops.masterjava.persist.dao;
++
++import ru.javaops.masterjava.persist.DBIProvider;
++import ru.javaops.masterjava.persist.DBITestProvider;
++
++/**
++ * gkislin
++ * 27.10.2016
++ */
++public abstract class AbstractDaoTest<DAO extends AbstractDao> {
++    static {
++        DBITestProvider.initDBI();
++    }
++
++    protected DAO dao;
++
++    protected AbstractDaoTest(Class<DAO> daoClass) {
++        this.dao = DBIProvider.getDao(daoClass);
++    }
++}
+diff --git a/persist/src/test/java/ru/javaops/masterjava/persist/dao/UserDaoTest.java b/persist/src/test/java/ru/javaops/masterjava/persist/dao/UserDaoTest.java
+new file mode 100644
+index 0000000..e47dbac
+--- /dev/null
++++ b/persist/src/test/java/ru/javaops/masterjava/persist/dao/UserDaoTest.java
+@@ -0,0 +1,39 @@
++package ru.javaops.masterjava.persist.dao;
++
++import org.junit.Assert;
++import org.junit.Before;
++import org.junit.BeforeClass;
++import org.junit.Test;
++import ru.javaops.masterjava.persist.UserTestData;
++import ru.javaops.masterjava.persist.model.User;
++
++import java.util.List;
++
++import static ru.javaops.masterjava.persist.UserTestData.FIST5_USERS;
++
++/**
++ * gkislin
++ * 27.10.2016
++ */
++public class UserDaoTest extends AbstractDaoTest<UserDao> {
++
++    public UserDaoTest() {
++        super(UserDao.class);
++    }
++
++    @BeforeClass
++    public static void init() throws Exception {
++        UserTestData.init();
++    }
++
++    @Before
++    public void setUp() throws Exception {
++        UserTestData.setUp();
++    }
++
++    @Test
++    public void getWithLimit() {
++        List<User> users = dao.getWithLimit(5);
++        Assert.assertEquals(FIST5_USERS, users);
++    }
++}
+\ No newline at end of file
+diff --git a/pom.xml b/pom.xml
+index d7da81f..e6aa92b 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -16,6 +16,7 @@
+         <module>parent-web</module>
+ 
+         <module>common</module>
++        <module>persist</module>
+         <module>test</module>
+ 
+         <module>web</module>
+diff --git a/web/export/pom.xml b/web/export/pom.xml
+index e64c945..3196e8a 100644
+--- a/web/export/pom.xml
++++ b/web/export/pom.xml
+@@ -22,6 +22,11 @@
+ 
+     <dependencies>
+         <dependency>
++            <groupId>${project.groupId}</groupId>
++            <artifactId>persist</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++        <dependency>
+             <groupId>com.j2html</groupId>
+             <artifactId>j2html</artifactId>
+             <version>0.7</version>
+diff --git a/web/export/src/main/java/ru/javaops/masterjava/export/UploadServlet.java b/web/export/src/main/java/ru/javaops/masterjava/export/UploadServlet.java
+index 6b8e587..b254d14 100644
+--- a/web/export/src/main/java/ru/javaops/masterjava/export/UploadServlet.java
++++ b/web/export/src/main/java/ru/javaops/masterjava/export/UploadServlet.java
+@@ -1,7 +1,7 @@
+ package ru.javaops.masterjava.export;
+ 
+ import org.thymeleaf.context.WebContext;
+-import ru.javaops.masterjava.model.User;
++import ru.javaops.masterjava.persist.model.User;
+ 
+ import javax.servlet.ServletException;
+ import javax.servlet.annotation.MultipartConfig;
+diff --git a/web/export/src/main/java/ru/javaops/masterjava/export/UserExport.java b/web/export/src/main/java/ru/javaops/masterjava/export/UserExport.java
+index 27daf5f..078268b 100644
+--- a/web/export/src/main/java/ru/javaops/masterjava/export/UserExport.java
++++ b/web/export/src/main/java/ru/javaops/masterjava/export/UserExport.java
+@@ -1,7 +1,7 @@
+ package ru.javaops.masterjava.export;
+ 
+-import ru.javaops.masterjava.model.User;
+-import ru.javaops.masterjava.model.UserFlag;
++import ru.javaops.masterjava.persist.model.User;
++import ru.javaops.masterjava.persist.model.UserFlag;
+ import ru.javaops.masterjava.xml.util.StaxStreamProcessor;
+ 
+ import javax.xml.stream.XMLStreamException;
