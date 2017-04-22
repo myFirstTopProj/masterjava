@@ -1,0 +1,88 @@
+Index: persist/src/main/resources/persist.conf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/resources/persist.conf	(revision )
++++ persist/src/main/resources/persist.conf	(revision )
+@@ -0,0 +1,7 @@
++db {
++  url = "jdbc:postgresql://localhost:5432/masterjava"
++  user = user
++  password = password
++}
++
++include required(file("/apps/masterjava/config/persist.conf"))
+Index: common/src/main/java/ru/javaops/masterjava/config/Configs.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- common/src/main/java/ru/javaops/masterjava/config/Configs.java	(revision )
++++ common/src/main/java/ru/javaops/masterjava/config/Configs.java	(revision )
+@@ -0,0 +1,19 @@
++package ru.javaops.masterjava.config;
++
++import com.typesafe.config.Config;
++import com.typesafe.config.ConfigFactory;
++
++/**
++ * gkislin
++ * 01.11.2016
++ */
++public class Configs {
++
++    public static Config getConfig(String resource) {
++        return ConfigFactory.parseResources(resource).resolve();
++    }
++
++    public static Config getConfig(String resource, String domain) {
++        return getConfig(resource).getConfig(domain);
++    }
++}
+Index: parent/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- parent/pom.xml	(date 1490746427000)
++++ parent/pom.xml	(revision )
+@@ -86,6 +86,12 @@
+             <artifactId>streamex</artifactId>
+             <version>0.6.2</version>
+         </dependency>
++        <!-- config -->
++        <dependency>
++            <groupId>com.typesafe</groupId>
++            <artifactId>config</artifactId>
++            <version>1.3.1</version>
++        </dependency>
+ 
+         <!-- Logging with SLF4J & LogBack -->
+         <dependency>
+Index: persist/src/test/java/ru/javaops/masterjava/persist/DBITestProvider.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/test/java/ru/javaops/masterjava/persist/DBITestProvider.java	(date 1490746427000)
++++ persist/src/test/java/ru/javaops/masterjava/persist/DBITestProvider.java	(revision )
+@@ -1,5 +1,8 @@
+ package ru.javaops.masterjava.persist;
+ 
++import com.typesafe.config.Config;
++import ru.javaops.masterjava.config.Configs;
++
+ import java.sql.DriverManager;
+ 
+ /**
+@@ -8,7 +11,8 @@
+  */
+ public class DBITestProvider {
+     public static void initDBI() {
+-        initDBI("jdbc:postgresql://localhost:5432/masterjava", "user", "password");
++        Config db = Configs.getConfig("persist.conf","db");
++        initDBI(db.getString("url"), db.getString("user"), db.getString("password"));
+     }
+ 
+     public static void initDBI(String dbUrl, String dbUser, String dbPassword) {

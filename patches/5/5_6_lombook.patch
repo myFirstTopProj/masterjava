@@ -1,0 +1,268 @@
+Index: parent/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- parent/pom.xml	(date 1490748029000)
++++ parent/pom.xml	(revision )
+@@ -93,6 +93,13 @@
+             <version>1.3.1</version>
+         </dependency>
+ 
++        <dependency>
++            <groupId>org.projectlombok</groupId>
++            <artifactId>lombok</artifactId>
++            <version>1.16.16</version>
++            <scope>provided</scope>
++        </dependency>
++
+         <!-- Logging with SLF4J & LogBack -->
+         <dependency>
+             <groupId>org.slf4j</groupId>
+Index: persist/src/main/java/ru/javaops/masterjava/persist/DBIProvider.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/java/ru/javaops/masterjava/persist/DBIProvider.java	(date 1490748029000)
++++ persist/src/main/java/ru/javaops/masterjava/persist/DBIProvider.java	(revision )
+@@ -1,22 +1,20 @@
+ package ru.javaops.masterjava.persist;
+ 
++import lombok.extern.slf4j.Slf4j;
+ import org.skife.jdbi.v2.DBI;
+ import org.skife.jdbi.v2.logging.SLF4JLog;
+ import org.skife.jdbi.v2.tweak.ConnectionFactory;
+-import org.slf4j.Logger;
+ import ru.javaops.masterjava.persist.dao.AbstractDao;
+ 
+ import javax.naming.InitialContext;
+ import javax.sql.DataSource;
+ 
+-import static org.slf4j.LoggerFactory.getLogger;
+-
+ /**
+  * gkislin
+  * 01.11.2016
+  */
++@Slf4j
+ public class DBIProvider {
+-    private static final Logger log = getLogger(DBIProvider.class);
+ 
+     private volatile static ConnectionFactory connectionFactory = null;
+ 
+Index: persist/src/main/java/ru/javaops/masterjava/persist/model/User.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/java/ru/javaops/masterjava/persist/model/User.java	(date 1490748029000)
++++ persist/src/main/java/ru/javaops/masterjava/persist/model/User.java	(revision )
+@@ -1,82 +1,20 @@
+ package ru.javaops.masterjava.persist.model;
+ 
+ import com.bertoncelj.jdbi.entitymapper.Column;
++import lombok.*;
+ 
+-import java.util.Objects;
+-
++@Data
++@RequiredArgsConstructor
++@EqualsAndHashCode(callSuper = true)
++@NoArgsConstructor
+ public class User extends BaseEntity {
+     @Column("full_name")
+-    private String fullName;
+-
+-    private String email;
+-
+-    private UserFlag flag;
+-
+-    public User() {
+-    }
+-
+-    public User(String fullName, String email, UserFlag flag) {
+-        this(null, fullName, email, flag);
+-    }
++    private @NonNull String fullName;
++    private @NonNull String email;
++    private @NonNull UserFlag flag;
+ 
+     public User(Integer id, String fullName, String email, UserFlag flag) {
+-        super(id);
+-        this.fullName = fullName;
+-        this.email = email;
+-        this.flag = flag;
+-    }
+-
+-    public String getFullName() {
+-        return fullName;
+-    }
+-
+-    public String getEmail() {
+-        return email;
+-    }
+-
+-    public UserFlag getFlag() {
+-        return flag;
+-    }
+-
+-    public void setId(Integer id) {
+-        this.id = id;
++        this(fullName, email, flag);
++        this.id=id;
+     }
+-
+-    public void setFullName(String fullName) {
+-        this.fullName = fullName;
+-    }
+-
+-    public void setEmail(String email) {
+-        this.email = email;
+-    }
+-
+-    public void setFlag(UserFlag flag) {
+-        this.flag = flag;
+-    }
+-
+-    @Override
+-    public boolean equals(Object o) {
+-        if (this == o) return true;
+-        if (o == null || getClass() != o.getClass()) return false;
+-        User user = (User) o;
+-        return Objects.equals(id, user.id) &&
+-                Objects.equals(fullName, user.fullName) &&
+-                Objects.equals(email, user.email) &&
+-                flag == user.flag;
+-    }
+-
+-    @Override
+-    public int hashCode() {
+-        return Objects.hash(id, fullName, email, flag);
+-    }
+-
+-    @Override
+-    public String toString() {
+-        return "User (" +
+-                "id=" + id +
+-                ", fullName='" + fullName + '\'' +
+-                ", email='" + email + '\'' +
+-                ", flag=" + flag +
+-                ')';
+-    }
+ }
+\ No newline at end of file
+Index: persist/src/main/java/ru/javaops/masterjava/persist/model/BaseEntity.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/java/ru/javaops/masterjava/persist/model/BaseEntity.java	(date 1490748029000)
++++ persist/src/main/java/ru/javaops/masterjava/persist/model/BaseEntity.java	(revision )
+@@ -1,27 +1,22 @@
+ package ru.javaops.masterjava.persist.model;
+ 
++import lombok.AllArgsConstructor;
++import lombok.Getter;
++import lombok.NoArgsConstructor;
++import lombok.Setter;
++
+ /**
+  * gkislin
+  * 28.10.2016
+  */
++@NoArgsConstructor
++@AllArgsConstructor
+ abstract public class BaseEntity {
+-    protected BaseEntity() {
+-    }
+ 
+-    protected BaseEntity(Integer id) {
+-        this.id = id;
+-    }
+-
++    @Getter
++    @Setter
+     protected Integer id;
+ 
+-    public Integer getId() {
+-        return id;
+-    }
+-
+-    protected void setId(Integer id) {
+-        this.id = id;
+-    }
+-
+     public boolean isNew() {
+         return id == null;
+     }
+Index: web/export/src/main/java/ru/javaops/masterjava/export/UploadServlet.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/export/src/main/java/ru/javaops/masterjava/export/UploadServlet.java	(date 1490748029000)
++++ web/export/src/main/java/ru/javaops/masterjava/export/UploadServlet.java	(revision )
+@@ -1,8 +1,7 @@
+ package ru.javaops.masterjava.export;
+ 
+ import com.google.common.collect.ImmutableMap;
+-import org.slf4j.Logger;
+-import org.slf4j.LoggerFactory;
++import lombok.extern.slf4j.Slf4j;
+ import org.thymeleaf.context.WebContext;
+ 
+ import javax.servlet.ServletException;
+@@ -20,8 +19,8 @@
+ 
+ @WebServlet("/")
+ @MultipartConfig
++@Slf4j
+ public class UploadServlet extends HttpServlet {
+-    private static final Logger log = LoggerFactory.getLogger(UploadServlet.class);
+     private static final int CHUNK_SIZE = 2000;
+ 
+     private final UserExport userExport = new UserExport();
+Index: web/export/src/main/java/ru/javaops/masterjava/export/UserExport.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/export/src/main/java/ru/javaops/masterjava/export/UserExport.java	(date 1490748029000)
++++ web/export/src/main/java/ru/javaops/masterjava/export/UserExport.java	(revision )
+@@ -1,8 +1,8 @@
+ package ru.javaops.masterjava.export;
+ 
++import lombok.Value;
++import lombok.extern.slf4j.Slf4j;
+ import one.util.streamex.StreamEx;
+-import org.slf4j.Logger;
+-import org.slf4j.LoggerFactory;
+ import ru.javaops.masterjava.persist.DBIProvider;
+ import ru.javaops.masterjava.persist.dao.UserDao;
+ import ru.javaops.masterjava.persist.model.User;
+@@ -23,22 +23,18 @@
+  * gkislin
+  * 14.10.2016
+  */
++@Slf4j
+ public class UserExport {
+-    private static final Logger log = LoggerFactory.getLogger(UserExport.class);
+ 
+     private UserDao userDao = DBIProvider.getDao(UserDao.class);
+     private static final int NUMBER_THREADS = 4;
+     private ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_THREADS);
+ 
++    @Value
+     public static class FailedEmail {
+         public String emailOrRange;
+         public String reason;
+ 
+-        public FailedEmail(String emailOrRange, String reason) {
+-            this.emailOrRange = emailOrRange;
+-            this.reason = reason;
+-        }
+-
+         @Override
+         public String toString() {
+             return emailOrRange + " : " + reason;

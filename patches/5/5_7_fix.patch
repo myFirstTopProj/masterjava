@@ -1,0 +1,53 @@
+Index: persist/src/main/java/ru/javaops/masterjava/persist/dao/UserDao.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/java/ru/javaops/masterjava/persist/dao/UserDao.java	(date 1490995613000)
++++ persist/src/main/java/ru/javaops/masterjava/persist/dao/UserDao.java	(revision )
+@@ -61,7 +61,7 @@
+     public abstract int[] insertBatch(@BindBean List<User> users, @BatchChunkSize int chunkSize);
+ 
+ 
+-    public List<String> insertAndGetAlreadyPresent(List<User> users) {
++    public List<String> insertAndGetConflictEmails(List<User> users) {
+         int[] result = insertBatch(users, users.size());
+         return IntStreamEx.range(0, users.size())
+                 .filter(i -> result[i] == 0)
+Index: web/export/src/main/java/ru/javaops/masterjava/export/UserExport.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/export/src/main/java/ru/javaops/masterjava/export/UserExport.java	(date 1490995613000)
++++ web/export/src/main/java/ru/javaops/masterjava/export/UserExport.java	(revision )
+@@ -26,9 +26,9 @@
+ @Slf4j
+ public class UserExport {
+ 
+-    private UserDao userDao = DBIProvider.getDao(UserDao.class);
+     private static final int NUMBER_THREADS = 4;
+-    private ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_THREADS);
++    private final ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_THREADS);
++    private final UserDao userDao = DBIProvider.getDao(UserDao.class);
+ 
+     @Value
+     public static class FailedEmail {
+@@ -74,7 +74,7 @@
+                     chunk.add(user);
+                     if (chunk.size() == chunkSize) {
+                         futures.add(submit(chunk));
+-                        chunk.clear();
++                        chunk = new ArrayList<>(chunkSize);
+                         id = userDao.getSeqAndSkip(chunkSize);
+                     }
+                 }
+@@ -98,7 +98,7 @@
+ 
+             private ChunkFuture submit(List<User> chunk) {
+                 ChunkFuture chunkFuture = new ChunkFuture(chunk,
+-                        executorService.submit(() -> userDao.insertAndGetAlreadyPresent(chunk))
++                        executorService.submit(() -> userDao.insertAndGetConflictEmails(chunk))
+                 );
+                 log.info("Submit " + chunkFuture.emailRange);
+                 return chunkFuture;
