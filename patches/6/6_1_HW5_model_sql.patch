@@ -1,0 +1,290 @@
+Index: persist/src/main/java/ru/javaops/masterjava/persist/model/City.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/java/ru/javaops/masterjava/persist/model/City.java	(revision )
++++ persist/src/main/java/ru/javaops/masterjava/persist/model/City.java	(revision )
+@@ -0,0 +1,21 @@
++package ru.javaops.masterjava.persist.model;
++
++import lombok.*;
++
++@Data
++@EqualsAndHashCode(callSuper = true)
++@RequiredArgsConstructor
++@NoArgsConstructor
++@ToString(callSuper = true)
++public class City extends BaseEntity {
++
++    @NonNull
++    private String ref;
++    @NonNull
++    private String name;
++
++    public City(Integer id, String ref, String name) {
++        this(ref, name);
++        this.id = id;
++    }
++}
+\ No newline at end of file
+Index: config_templates/sql/001_add_city.sql
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- config_templates/sql/001_add_city.sql	(revision )
++++ config_templates/sql/001_add_city.sql	(revision )
+@@ -0,0 +1,10 @@
++CREATE SEQUENCE common_seq START 100000;
++
++CREATE TABLE city (
++  id   INTEGER PRIMARY KEY DEFAULT nextval('common_seq'),
++  ref  TEXT UNIQUE,
++  name TEXT NOT NULL
++);
++
++ALTER TABLE users
++  ADD COLUMN city_id INTEGER REFERENCES city (id);
+\ No newline at end of file
+Index: persist/src/main/java/ru/javaops/masterjava/persist/model/Group.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/java/ru/javaops/masterjava/persist/model/Group.java	(revision )
++++ persist/src/main/java/ru/javaops/masterjava/persist/model/Group.java	(revision )
+@@ -0,0 +1,21 @@
++package ru.javaops.masterjava.persist.model;
++
++import com.bertoncelj.jdbi.entitymapper.Column;
++import lombok.*;
++
++@Data
++@EqualsAndHashCode(callSuper = true)
++@RequiredArgsConstructor
++@NoArgsConstructor
++@ToString(callSuper = true)
++public class Group extends BaseEntity {
++
++    @NonNull private String name;
++    @NonNull private GroupType type;
++    @NonNull @Column("project_id") private int projectId;
++
++    public Group(Integer id, String name, GroupType type, int projectId) {
++        this(name, type, projectId);
++        this.id = id;
++    }
++}
+Index: persist/src/main/java/ru/javaops/masterjava/persist/model/UserGroup.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/java/ru/javaops/masterjava/persist/model/UserGroup.java	(revision )
++++ persist/src/main/java/ru/javaops/masterjava/persist/model/UserGroup.java	(revision )
+@@ -0,0 +1,12 @@
++package ru.javaops.masterjava.persist.model;
++
++import com.bertoncelj.jdbi.entitymapper.Column;
++import lombok.*;
++
++@Data
++@RequiredArgsConstructor
++@NoArgsConstructor
++public class UserGroup {
++    @NonNull @Column("user_id") private Integer userId;
++    @NonNull @Column("group_id") private Integer groupId;
++}
+\ No newline at end of file
+Index: persist/src/main/java/ru/javaops/masterjava/persist/dao/UserDao.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/java/ru/javaops/masterjava/persist/dao/UserDao.java	(revision b77b7479e8e01d0eb7b3264d7ac986220f1b7951)
++++ persist/src/main/java/ru/javaops/masterjava/persist/dao/UserDao.java	(revision )
+@@ -50,7 +50,7 @@
+     public abstract List<User> getWithLimit(@Bind int limit);
+ 
+     //   http://stackoverflow.com/questions/13223820/postgresql-delete-all-content
+-    @SqlUpdate("TRUNCATE users")
++    @SqlUpdate("TRUNCATE users CASCADE")
+     @Override
+     public abstract void clean();
+ 
+Index: config_templates/sql/databaseChangeLog.sql
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- config_templates/sql/databaseChangeLog.sql	(revision )
++++ config_templates/sql/databaseChangeLog.sql	(revision )
+@@ -0,0 +1,35 @@
++--liquibase formatted sql
++
++--changeset gkislin:1
++CREATE SEQUENCE common_seq START 100000;
++
++CREATE TABLE city (
++  id   INTEGER PRIMARY KEY DEFAULT nextval('common_seq'),
++  ref  TEXT UNIQUE,
++  name TEXT NOT NULL
++);
++
++ALTER TABLE users
++  ADD COLUMN city_id INTEGER REFERENCES city (id);
++
++--changeset gkislin:2
++CREATE TABLE project (
++  id          INTEGER PRIMARY KEY DEFAULT nextval('common_seq'),
++  name        TEXT NOT NULL UNIQUE,
++  description TEXT
++);
++
++CREATE TYPE GROUP_TYPE AS ENUM ('REGISTERING', 'CURRENT', 'FINISHED');
++
++CREATE TABLE groups (
++  id         INTEGER PRIMARY KEY DEFAULT nextval('common_seq'),
++  name       TEXT       NOT NULL UNIQUE,
++  type       GROUP_TYPE NOT NULL,
++  project_id INTEGER    NOT NULL REFERENCES project (id)
++);
++
++CREATE TABLE user_group (
++  user_id  INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
++  group_id INTEGER NOT NULL REFERENCES groups (id),
++  CONSTRAINT users_group_idx UNIQUE (user_id, group_id)
++);
+Index: persist/src/main/java/ru/javaops/masterjava/persist/model/User.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/java/ru/javaops/masterjava/persist/model/User.java	(revision b77b7479e8e01d0eb7b3264d7ac986220f1b7951)
++++ persist/src/main/java/ru/javaops/masterjava/persist/model/User.java	(revision )
+@@ -4,9 +4,10 @@
+ import lombok.*;
+ 
+ @Data
+-@RequiredArgsConstructor
+ @EqualsAndHashCode(callSuper = true)
++@RequiredArgsConstructor
+ @NoArgsConstructor
++@ToString(callSuper = true)
+ public class User extends BaseEntity {
+     @Column("full_name")
+     private @NonNull String fullName;
+Index: persist/src/main/java/ru/javaops/masterjava/persist/model/BaseEntity.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/java/ru/javaops/masterjava/persist/model/BaseEntity.java	(revision b77b7479e8e01d0eb7b3264d7ac986220f1b7951)
++++ persist/src/main/java/ru/javaops/masterjava/persist/model/BaseEntity.java	(revision )
+@@ -1,9 +1,6 @@
+ package ru.javaops.masterjava.persist.model;
+ 
+-import lombok.AllArgsConstructor;
+-import lombok.Getter;
+-import lombok.NoArgsConstructor;
+-import lombok.Setter;
++import lombok.*;
+ 
+ /**
+  * gkislin
+@@ -11,6 +8,7 @@
+  */
+ @NoArgsConstructor
+ @AllArgsConstructor
++@ToString
+ abstract public class BaseEntity {
+ 
+     @Getter
+Index: config_templates/sql/lb_apply.bat
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- config_templates/sql/lb_apply.bat	(revision )
++++ config_templates/sql/lb_apply.bat	(revision )
+@@ -0,0 +1,8 @@
++set LB_HOME=c:\java\liquibase-3.5.3
++call %LB_HOME%\liquibase.bat --driver=org.postgresql.Driver ^
++--classpath=%LB_HOME%\lib ^
++--changeLogFile=databaseChangeLog.sql ^
++--url="jdbc:postgresql://localhost:5432/masterjava" ^
++--username=user ^
++--password=password ^
++migrate
+\ No newline at end of file
+Index: config_templates/sql/002_add_projects.sql
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- config_templates/sql/002_add_projects.sql	(revision )
++++ config_templates/sql/002_add_projects.sql	(revision )
+@@ -0,0 +1,20 @@
++CREATE TABLE project (
++  id          INTEGER PRIMARY KEY DEFAULT nextval('common_seq'),
++  name        TEXT NOT NULL UNIQUE,
++  description TEXT
++);
++
++CREATE TYPE group_type AS ENUM ('REGISTERING', 'CURRENT', 'FINISHED');
++
++CREATE TABLE groups (
++  id         INTEGER PRIMARY KEY DEFAULT nextval('common_seq'),
++  name       TEXT       NOT NULL UNIQUE,
++  type       group_type NOT NULL,
++  project_id INTEGER    NOT NULL REFERENCES project (id)
++);
++
++CREATE TABLE user_group (
++  user_id  INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
++  group_id INTEGER NOT NULL REFERENCES groups (id),
++  CONSTRAINT users_group_idx UNIQUE (user_id, group_id)
++);
+Index: persist/src/main/java/ru/javaops/masterjava/persist/model/Project.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/java/ru/javaops/masterjava/persist/model/Project.java	(revision )
++++ persist/src/main/java/ru/javaops/masterjava/persist/model/Project.java	(revision )
+@@ -0,0 +1,19 @@
++package ru.javaops.masterjava.persist.model;
++
++import lombok.*;
++
++@Data
++@EqualsAndHashCode(callSuper = true)
++@RequiredArgsConstructor
++@NoArgsConstructor
++@ToString(callSuper = true)
++public class Project extends BaseEntity {
++
++    @NonNull private String name;
++    @NonNull private String description;
++
++    public Project(Integer id, String name, String description) {
++        this(name, description);
++        this.id = id;
++    }
++}
+Index: persist/src/main/java/ru/javaops/masterjava/persist/model/GroupType.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/src/main/java/ru/javaops/masterjava/persist/model/GroupType.java	(revision )
++++ persist/src/main/java/ru/javaops/masterjava/persist/model/GroupType.java	(revision )
+@@ -0,0 +1,7 @@
++package ru.javaops.masterjava.persist.model;
++
++public enum GroupType {
++    REGISTERING,
++    CURRENT,
++    FINISHED;
++}

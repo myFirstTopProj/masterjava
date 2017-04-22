@@ -1,0 +1,152 @@
+Index: web/export/src/main/java/ru/javaops/masterjava/export/CityImporter.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/export/src/main/java/ru/javaops/masterjava/export/CityImporter.java	(revision )
++++ web/export/src/main/java/ru/javaops/masterjava/export/CityImporter.java	(revision )
+@@ -0,0 +1,38 @@
++package ru.javaops.masterjava.export;
++
++import lombok.extern.slf4j.Slf4j;
++import lombok.val;
++import ru.javaops.masterjava.persist.DBIProvider;
++import ru.javaops.masterjava.persist.dao.CityDao;
++import ru.javaops.masterjava.persist.model.City;
++import ru.javaops.masterjava.xml.util.StaxStreamProcessor;
++
++import javax.xml.stream.XMLStreamException;
++import javax.xml.stream.events.XMLEvent;
++import java.util.ArrayList;
++import java.util.Map;
++
++/**
++ * gkislin
++ * 15.11.2016
++ */
++@Slf4j
++public class CityImporter {
++    private final CityDao cityDao = DBIProvider.getDao(CityDao.class);
++    public Map<String, City> process(StaxStreamProcessor processor) throws XMLStreamException {
++        val map = cityDao.getAsMap();
++        val newCities = new ArrayList<City>();
++        String element;
++
++        while ((element = processor.doUntilAny(XMLEvent.START_ELEMENT, "City", "Users")) != null) {
++            if (element.equals("Users")) break;
++            val ref = processor.getAttribute("id");
++            if (!map.containsKey(ref)) {
++                newCities.add(new City(null, ref, processor.getText()));
++            }
++        }
++        log.info("Insert batch " + newCities);
++        cityDao.insertBatch(newCities);
++        return cityDao.getAsMap();
++    }
++}
+\ No newline at end of file
+Index: web/export/src/main/java/ru/javaops/masterjava/export/PayloadImporter.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/export/src/main/java/ru/javaops/masterjava/export/PayloadImporter.java	(date 1491596439000)
++++ web/export/src/main/java/ru/javaops/masterjava/export/PayloadImporter.java	(revision )
+@@ -1,6 +1,7 @@
+ package ru.javaops.masterjava.export;
+ 
+ import lombok.Value;
++import lombok.val;
+ import ru.javaops.masterjava.xml.util.StaxStreamProcessor;
+ 
+ import javax.xml.stream.XMLStreamException;
+@@ -8,6 +9,7 @@
+ import java.util.List;
+ 
+ public class PayloadImporter {
++    private final CityImporter cityImporter = new CityImporter();
+     private final UserImporter userImporter = new UserImporter();
+ 
+     @Value
+@@ -23,6 +25,7 @@
+ 
+     public List<PayloadImporter.FailedEmail> process(InputStream is, int chunkSize) throws XMLStreamException {
+         final StaxStreamProcessor processor = new StaxStreamProcessor(is);
+-        return userImporter.process(processor, chunkSize);
++        val cities = cityImporter.process(processor);
++        return userImporter.process(processor, cities, chunkSize);
+     }
+ }
+Index: web/export/src/main/java/ru/javaops/masterjava/export/UserImporter.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/export/src/main/java/ru/javaops/masterjava/export/UserImporter.java	(date 1491596439000)
++++ web/export/src/main/java/ru/javaops/masterjava/export/UserImporter.java	(revision )
+@@ -5,6 +5,7 @@
+ import ru.javaops.masterjava.export.PayloadImporter.FailedEmail;
+ import ru.javaops.masterjava.persist.DBIProvider;
+ import ru.javaops.masterjava.persist.dao.UserDao;
++import ru.javaops.masterjava.persist.model.City;
+ import ru.javaops.masterjava.persist.model.User;
+ import ru.javaops.masterjava.persist.model.UserFlag;
+ import ru.javaops.masterjava.xml.util.StaxStreamProcessor;
+@@ -13,6 +14,7 @@
+ import javax.xml.stream.events.XMLEvent;
+ import java.util.ArrayList;
+ import java.util.List;
++import java.util.Map;
+ import java.util.concurrent.Callable;
+ import java.util.concurrent.ExecutorService;
+ import java.util.concurrent.Executors;
+@@ -29,7 +31,7 @@
+     private final ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_THREADS);
+     private final UserDao userDao = DBIProvider.getDao(UserDao.class);
+ 
+-    public List<FailedEmail> process(StaxStreamProcessor processor, int chunkSize) throws XMLStreamException {
++    public List<FailedEmail> process(StaxStreamProcessor processor, Map<String, City> cities, int chunkSize) throws XMLStreamException {
+         log.info("Start proseccing with chunkSize=" + chunkSize);
+ 
+         return new Callable<List<FailedEmail>>() {
+@@ -52,17 +54,24 @@
+ 
+                 int id = userDao.getSeqAndSkip(chunkSize);
+                 List<User> chunk = new ArrayList<>(chunkSize);
++                List<FailedEmail> failed = new ArrayList<>();
+ 
+                 while (processor.doUntil(XMLEvent.START_ELEMENT, "User")) {
+                     final String email = processor.getAttribute("email");
+-                    final UserFlag flag = UserFlag.valueOf(processor.getAttribute("flag"));
+-                    final String fullName = processor.getReader().getElementText();
+-                    final User user = new User(id++, fullName, email, flag, null);
+-                    chunk.add(user);
+-                    if (chunk.size() == chunkSize) {
+-                        futures.add(submit(chunk));
+-                        chunk = new ArrayList<>(chunkSize);
+-                        id = userDao.getSeqAndSkip(chunkSize);
++                    String cityRef = processor.getAttribute("city");
++                    City city = cities.get(cityRef);
++                    if (city == null) {
++                        failed.add(new FailedEmail(email, "City '" + cityRef + "' is not present in DB"));
++                    } else {
++                        final UserFlag flag = UserFlag.valueOf(processor.getAttribute("flag"));
++                        final String fullName = processor.getReader().getElementText();
++                        final User user = new User(id++, fullName, email, flag, city.getId());
++                        chunk.add(user);
++                        if (chunk.size() == chunkSize) {
++                            futures.add(submit(chunk));
++                            chunk = new ArrayList<>(chunkSize);
++                            id = userDao.getSeqAndSkip(chunkSize);
++                        }
+                     }
+                 }
+ 
+@@ -70,7 +79,6 @@
+                     futures.add(submit(chunk));
+                 }
+ 
+-                List<FailedEmail> failed = new ArrayList<>();
+                 futures.forEach(cf -> {
+                     try {
+                         failed.addAll(StreamEx.of(cf.future.get()).map(email -> new FailedEmail(email, "already present")).toList());
