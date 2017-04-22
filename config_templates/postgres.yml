@@ -1,0 +1,13 @@
+version: '2'
+services:
+    masterjava-postgresql:
+        image: postgres:9.6
+        ports:
+            - "5432:5432"
+        environment:
+            - POSTGRES_USER=user
+            - POSTGRES_PASSWORD=password
+            - POSTGRES_DB=masterjava
+
+# docker-compose -f postgres.yml up -d
+# docker-compose -f postgres.yml down
