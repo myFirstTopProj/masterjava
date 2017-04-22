@@ -5,7 +5,7 @@
     <!-- To enable JMX Management -->
     <jmxConfigurator/>
 
-    <property name="LOG_DIR" value="/apps/masterjava/logs/"/>
+    <property name="LOG_DIR" value="/home/konst/work/masterjava/logs/"/>
 
     <appender name="file" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_DIR}/${project.build.finalName}.log</file>
