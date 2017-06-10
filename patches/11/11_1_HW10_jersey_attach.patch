@@ -1,0 +1,178 @@
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRS.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRS.java	(date 1494323941000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRS.java	(revision )
+@@ -1,15 +1,23 @@
+ package ru.javaops.masterjava.service.mail.rest;
+ 
+ 
++import com.google.common.collect.ImmutableList;
++import org.glassfish.jersey.media.multipart.BodyPartEntity;
++import org.glassfish.jersey.media.multipart.FormDataBodyPart;
++import org.glassfish.jersey.media.multipart.FormDataParam;
+ import org.hibernate.validator.constraints.NotBlank;
++import ru.javaops.masterjava.service.mail.Attach;
+ import ru.javaops.masterjava.service.mail.GroupResult;
+ import ru.javaops.masterjava.service.mail.MailServiceExecutor;
+ import ru.javaops.masterjava.service.mail.MailWSClient;
++import ru.javaops.masterjava.service.mail.util.Attachments;
+ import ru.javaops.web.WebStateException;
+ 
++import javax.activation.DataHandler;
+ import javax.ws.rs.*;
+ import javax.ws.rs.core.MediaType;
+-import java.util.Collections;
++import java.io.UnsupportedEncodingException;
++import java.util.List;
+ 
+ @Path("/")
+ public class MailRS {
+@@ -21,12 +29,30 @@
+     }
+ 
+     @POST
+-    @Path("send")
++    @Path("/send")
+     @Produces(MediaType.APPLICATION_JSON)
+-    public GroupResult send(@NotBlank @FormParam("users") String users,
+-                            @FormParam("subject") String subject,
+-                            @NotBlank @FormParam("body") String body) throws WebStateException {
++    @Consumes(MediaType.MULTIPART_FORM_DATA)
++    public GroupResult send(@NotBlank @FormDataParam("users") String users,
++                            @FormDataParam("subject") String subject,
++                            @NotBlank @FormDataParam("body") String body,
++                            @FormDataParam("attach") FormDataBodyPart attachBodyPart) throws WebStateException {
+ 
+-        return MailServiceExecutor.sendBulk(MailWSClient.split(users), subject, body, Collections.emptyList());
++        final List<Attach> attaches;
++        String attachName = attachBodyPart.getContentDisposition().getFileName();
++
++        if (attachName.isEmpty()) {
++            attaches = ImmutableList.of();
++        } else {
++            try {
++//          UTF-8 encoding workaround: https://java.net/jira/browse/JERSEY-3032
++                String utf8name = new String(attachName.getBytes("ISO8859_1"), "UTF-8");
++                BodyPartEntity bodyPartEntity = ((BodyPartEntity) attachBodyPart.getEntity());
++
++                attaches = ImmutableList.of(new Attach(utf8name, new DataHandler((Attachments.ProxyDataSource) bodyPartEntity::getInputStream)));
++            } catch (UnsupportedEncodingException e) {
++                throw new IllegalStateException(e);
++            }
++        }
++        return MailServiceExecutor.sendBulk(MailWSClient.split(users), subject, body, attaches);
+     }
+ }
+\ No newline at end of file
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRestConfig.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRestConfig.java	(date 1494323941000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRestConfig.java	(revision )
+@@ -1,5 +1,6 @@
+ package ru.javaops.masterjava.service.mail.rest;
+ 
++import org.glassfish.jersey.media.multipart.MultiPartFeature;
+ import org.glassfish.jersey.server.ResourceConfig;
+ import org.slf4j.bridge.SLF4JBridgeHandler;
+ 
+@@ -13,5 +14,6 @@
+         // http://stackoverflow.com/questions/4121722
+         SLF4JBridgeHandler.install();
+         packages("ru.javaops.masterjava.service.mail.rest");
++        register(MultiPartFeature.class);
+     }
+ }
+\ No newline at end of file
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/util/Attachments.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/util/Attachments.java	(date 1494323941000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/util/Attachments.java	(revision )
+@@ -19,26 +19,28 @@
+     //    http://stackoverflow.com/a/5924019/548473
+ 
+     @AllArgsConstructor
+-    private static class InputStreamDataSource implements DataSource {
++    private static class InputStreamDataSource implements ProxyDataSource {
+         private InputStream inputStream;
+ 
+         @Override
+         public InputStream getInputStream() throws IOException {
+             return new CloseShieldInputStream(inputStream);
+         }
++    }
+ 
++    public interface ProxyDataSource extends DataSource {
+         @Override
+-        public OutputStream getOutputStream() throws IOException {
++        default OutputStream getOutputStream() throws IOException {
+             throw new UnsupportedOperationException("Not implemented");
+         }
+ 
+         @Override
+-        public String getContentType() {
++        default String getContentType() {
+             return "application/octet-stream";
+         }
+ 
+         @Override
+-        public String getName() {
++        default String getName() {
+             return "";
+         }
+     }
+Index: web/webapp/src/main/webapp/WEB-INF/templates/users.html
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/webapp/WEB-INF/templates/users.html	(date 1494323941000)
++++ web/webapp/src/main/webapp/WEB-INF/templates/users.html	(revision )
+@@ -62,12 +62,10 @@
+ <script type="text/javascript">
+     function setFormAttr(transport) {
+         var form = $("form");
+-        if (transport == 'SOAP') {
++        if (transport === 'SOAP') {
+             form.attr("action", 'send');
+-            form.attr("enctype", 'multipart/form-data');
+-        } else if(transport == 'REST'){
++        } else if(transport === 'REST'){
+             form.attr("action", '/mail/rest/send');
+-            form.attr("enctype", 'application/x-www-form-urlencoded');
+         } else {
+             form.attr("action", 'sendJms');
+             form.attr("enctype", 'application/x-www-form-urlencoded');
+Index: services/mail-service/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/pom.xml	(date 1494323941000)
++++ services/mail-service/pom.xml	(revision )
+@@ -90,6 +90,17 @@
+             <artifactId>jersey-bean-validation</artifactId>
+             <version>2.25.1</version>
+         </dependency>
++        <dependency>
++            <groupId>org.glassfish.jersey.media</groupId>
++            <artifactId>jersey-media-multipart</artifactId>
++            <version>2.25.1</version>
++            <exclusions>
++                <exclusion>
++                    <groupId>org.jvnet.mimepull</groupId>
++                    <artifactId>mimepull</artifactId>
++                </exclusion>
++            </exclusions>
++        </dependency>
+ 
+         <dependency>
+             <groupId>org.apache.activemq</groupId>

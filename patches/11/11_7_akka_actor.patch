@@ -1,0 +1,228 @@
+Index: web/webapp/src/main/java/ru/javaops/masterjava/webapp/akka/AkkaActorSendServlet.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/java/ru/javaops/masterjava/webapp/akka/AkkaActorSendServlet.java	(revision )
++++ web/webapp/src/main/java/ru/javaops/masterjava/webapp/akka/AkkaActorSendServlet.java	(revision )
+@@ -0,0 +1,56 @@
++package ru.javaops.masterjava.webapp.akka;
++
++import akka.actor.AbstractActor;
++import akka.actor.ActorRef;
++import lombok.extern.slf4j.Slf4j;
++import ru.javaops.masterjava.service.mail.GroupResult;
++import ru.javaops.masterjava.service.mail.util.MailUtils.MailObject;
++
++import javax.servlet.ServletConfig;
++import javax.servlet.ServletException;
++import javax.servlet.annotation.MultipartConfig;
++import javax.servlet.annotation.WebServlet;
++import javax.servlet.http.HttpServlet;
++import javax.servlet.http.HttpServletRequest;
++import javax.servlet.http.HttpServletResponse;
++import java.io.IOException;
++
++import static ru.javaops.masterjava.webapp.WebUtil.createMailObject;
++import static ru.javaops.masterjava.webapp.WebUtil.doAndWriteResponse;
++import static ru.javaops.masterjava.webapp.akka.AkkaWebappListener.akkaActivator;
++
++@WebServlet(value = "/sendAkkaActor", loadOnStartup = 1)
++@Slf4j
++@MultipartConfig
++public class AkkaActorSendServlet extends HttpServlet {
++    private ActorRef webappActor;
++    private ActorRef mailActor;
++
++    @Override
++    public void init(ServletConfig config) throws ServletException {
++        super.init(config);
++        webappActor = akkaActivator.startActor(WebappActor.class, "mail-client");
++        mailActor = akkaActivator.getActorRef("akka.tcp://MailService@127.0.0.1:2553/user/mail-actor");
++    }
++
++    @Override
++    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
++        req.setCharacterEncoding("UTF-8");
++        doAndWriteResponse(resp, () -> sendAkka(createMailObject(req)));
++    }
++
++    private String sendAkka(MailObject mailObject) {
++        mailActor.tell(mailObject, webappActor);
++        return "Successfully sent AKKA message";
++    }
++
++    public static class WebappActor extends AbstractActor {
++        @Override
++        public Receive createReceive() {
++            log.info("Receive result form mailActor");
++            return receiveBuilder().match(GroupResult.class,
++                    groupResult -> log.info(groupResult.toString()))
++                    .build();
++        }
++    }
++}
+\ No newline at end of file
+Index: web/webapp/src/main/webapp/WEB-INF/templates/users.html
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/webapp/WEB-INF/templates/users.html	(date 1495309768000)
++++ web/webapp/src/main/webapp/WEB-INF/templates/users.html	(revision )
+@@ -36,10 +36,11 @@
+         </tbody>
+     </table>
+     <hr/>
+-    <input type="radio" name="transport" onchange="setFormAttr('SOAP')" checked>SOAP<br>
+-    <input type="radio" name="transport" onchange="setFormAttr('REST')">REST<br>
+-    <input type="radio" name="transport" onchange="setFormAttr('JMS')">JMS<br>
+-    <input type="radio" name="transport" onchange="setFormAttr('AKKA_Typed')">AKKA Typed<br>
++    <input type="radio" name="transport" onchange="setAction('sendSoap')" checked>SOAP<br>
++    <input type="radio" name="transport" onchange="setAction('/mail/rest/send')">REST<br>
++    <input type="radio" name="transport" onchange="setAction('sendJms')">JMS<br>
++    <input type="radio" name="transport" onchange="setAction('sendAkkaTyped')">AKKA Typed<br>
++    <input type="radio" name="transport" onchange="setAction('sendAkkaActor')">AKKA Untyped<br>
+ 
+     <form enctype="multipart/form-data" action="sendSoap" method=post
+           target="result" onsubmit="window.open('','result','width=800,height=400,menubar=no');">
+@@ -61,19 +62,8 @@
+     </form>
+ </section>
+ <script type="text/javascript">
+-    function setFormAttr(transport) {
+-        var form = $("form");
+-        if (transport === 'SOAP') {
+-            form.attr("action", 'sendSoap');
+-        } else if (transport === 'REST') {
+-            form.attr("action", '/mail/rest/send');
+-        } else if (transport === 'JMS') {
+-            form.attr("action", 'sendJms');
+-        } else if (transport === 'AKKA_Typed') {
+-            form.attr("action", 'sendAkkaTyped');
+-        } else {
+-            alert("Unknown transport");
+-        }
++    function setAction(action) {
++        $("form").attr("action", action);
+     }
+ 
+     function fillUsers() {
+Index: services/akka-remote/src/main/java/ru/javaops/masterjava/akka/AkkaActivator.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/akka-remote/src/main/java/ru/javaops/masterjava/akka/AkkaActivator.java	(date 1495309768000)
++++ services/akka-remote/src/main/java/ru/javaops/masterjava/akka/AkkaActivator.java	(revision )
+@@ -1,8 +1,6 @@
+ package ru.javaops.masterjava.akka;
+ 
+-import akka.actor.ActorSystem;
+-import akka.actor.TypedActor;
+-import akka.actor.TypedProps;
++import akka.actor.*;
+ import akka.japi.Creator;
+ import lombok.extern.slf4j.Slf4j;
+ import ru.javaops.masterjava.config.Configs;
+@@ -28,11 +26,21 @@
+         TypedActor.get(system).typedActorOf(new TypedProps<T>(typedClass, creator), name);
+     }
+ 
++    public <T> ActorRef startActor(Class<T> actorClass, String name) {
++        log.info("Start AKKA actor: {}", name);
++        return system.actorOf(Props.create(actorClass), name);
++    }
++
+     public <T> T getTypedRef(Class<T> typedClass, String path) {
+         log.info("Get typed reference with path={}", path);
+         return TypedActor.get(system).typedActorOf(new TypedProps<T>(typedClass), system.actorFor(path));
+     }
+ 
++    public ActorRef getActorRef(String path) {
++        log.info("Get actor reference with path={}", path);
++        return system.actorFor(path);
++    }
++
+     public ExecutionContext getExecutionContext() {
+         return system.dispatcher();
+     }
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceExecutor.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceExecutor.java	(date 1495309768000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceExecutor.java	(revision )
+@@ -22,6 +22,11 @@
+ 
+     private static final ExecutorService mailExecutor = Executors.newFixedThreadPool(8);
+ 
++    public static GroupResult sendBulk(final MailObject mailObject) {
++        return sendBulk(MailUtils.split(mailObject.getUsers()),
++                mailObject.getSubject(), mailObject.getBody(), MailUtils.getAttaches(mailObject.getAttaches()));
++    }
++
+     public static GroupResult sendBulk(final Set<Addressee> addressees, final String subject, final String body, List<Attach> attaches) {
+         final CompletionService<MailResult> completionService = new ExecutorCompletionService<>(mailExecutor);
+ 
+@@ -71,9 +76,7 @@
+ 
+     public static scala.concurrent.Future<GroupResult> sendAsyncWithReply(MailObject mailObject, ExecutionContext ec) {
+         // http://doc.akka.io/docs/akka/current/java/futures.html
+-        return Futures.future(
+-                () -> sendBulk(MailUtils.split(mailObject.getUsers()), mailObject.getSubject(), mailObject.getBody(), MailUtils.getAttaches(mailObject.getAttaches())),
+-                ec);
++        return Futures.future(() -> sendBulk(mailObject), ec);
+     }
+ 
+     public static void sendAsync(MailObject mailObject) {
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/listeners/AkkaMailListener.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/listeners/AkkaMailListener.java	(date 1495309768000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/listeners/AkkaMailListener.java	(revision )
+@@ -1,10 +1,13 @@
+ package ru.javaops.masterjava.service.mail.listeners;
+ 
++import akka.actor.AbstractActor;
+ import akka.japi.Creator;
+ import lombok.extern.slf4j.Slf4j;
+ import ru.javaops.masterjava.akka.AkkaActivator;
++import ru.javaops.masterjava.service.mail.GroupResult;
+ import ru.javaops.masterjava.service.mail.MailRemoteService;
+ import ru.javaops.masterjava.service.mail.MailServiceExecutor;
++import ru.javaops.masterjava.service.mail.util.MailUtils;
+ 
+ import javax.servlet.ServletContextEvent;
+ import javax.servlet.ServletContextListener;
+@@ -21,10 +24,26 @@
+         akkaActivator.startTypedActor(MailRemoteService.class, "mail-remote-service",
+                 (Creator<MailRemoteService>) () ->
+                         mailObject -> MailServiceExecutor.sendAsyncWithReply(mailObject, akkaActivator.getExecutionContext()));
++        akkaActivator.startActor(MailActor.class, "mail-actor");
+     }
+ 
+     @Override
+     public void contextDestroyed(ServletContextEvent sce) {
+         akkaActivator.shutdown();
+     }
++
++    public static class MailActor extends AbstractActor {
++        @Override
++        public Receive createReceive() {
++            return receiveBuilder().match(MailUtils.MailObject.class,
++                    mailObject -> {
++                        log.info("Receive mail form webappActor");
++                        GroupResult groupResult = MailServiceExecutor.sendBulk(mailObject);
++                        log.info("Send result to webappActor");
++                        sender().tell(groupResult, self());
++                    })
++                    .build();
++        }
++    }
++
+ }
+\ No newline at end of file

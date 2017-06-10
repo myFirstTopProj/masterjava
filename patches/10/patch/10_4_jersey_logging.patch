@@ -1,0 +1,128 @@
+Index: services/mail-service/src/main/resources/logback.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/resources/logback.xml	(revision )
++++ services/mail-service/src/main/resources/logback.xml	(revision )
+@@ -0,0 +1,46 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<configuration scan="true" scanPeriod="30 seconds">
++    <!--https://www.mkyong.com/logging/logback-xml-example/-->
++
++    <contextListener class="ch.qos.logback.classic.jul.LevelChangePropagator">
++        <resetJUL>true</resetJUL>
++    </contextListener>
++
++    <!-- To enable JMX Management -->
++    <jmxConfigurator/>
++
++    <property name="LOG_DIR" value="/apps/masterjava/logs/"/>
++
++    <appender name="file" class="ch.qos.logback.core.rolling.RollingFileAppender">
++        <file>${LOG_DIR}/mail.log</file>
++        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
++            <charset>UTF-8</charset>
++            <pattern>%d{yyyy-MM-dd_HH:mm:ss.SSS} [%thread] %-5level %logger{0} [%file:%line] - %msg%n</pattern>
++        </encoder>
++        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
++            <!-- rollover daily -->
++            <fileNamePattern>${LOG_DIR}/archived/mail.%d{yyyy-MM-dd}.%i.log
++            </fileNamePattern>
++            <timeBasedFileNamingAndTriggeringPolicy
++                    class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
++                <maxFileSize>5MB</maxFileSize>
++            </timeBasedFileNamingAndTriggeringPolicy>
++        </rollingPolicy>
++    </appender>
++
++    <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
++        <encoder>
++            <charset>UTF-8</charset>
++            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{5} [%file:%line] - %msg%n</pattern>
++        </encoder>
++    </appender>
++
++    <logger name="ru.javaops.masterjava" level="info"/>
++    <logger name="org.hibernate.validator" level="debug"/>
++    <logger name="org.glassfish.jersey" level="trace"/>
++
++    <root level="warn">
++        <appender-ref ref="file"/>
++        <appender-ref ref="console"/>
++    </root>
++</configuration>
+\ No newline at end of file
+Index: parent/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- parent/pom.xml	(date 1493996315000)
++++ parent/pom.xml	(revision )
+@@ -115,6 +115,21 @@
+             <version>${logback.version}</version>
+         </dependency>
+ 
++        <dependency>
++            <groupId>org.slf4j</groupId>
++            <artifactId>jul-to-slf4j</artifactId>
++            <version>${slf4j.version}</version>
++        </dependency>
++
++        <!--
++                <dependency>
++                    <groupId>org.apache.tomcat</groupId>
++                    <artifactId>tomcat-catalina</artifactId>
++                    <version>8.5.11</version>
++                    <scope>provided</scope>
++                </dependency>
++        -->
++
+         <!--Test-->
+         <dependency>
+             <groupId>junit</groupId>
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRestConfig.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRestConfig.java	(date 1493996315000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRestConfig.java	(revision )
+@@ -1,12 +1,17 @@
+ package ru.javaops.masterjava.service.mail.rest;
+ 
+ import org.glassfish.jersey.server.ResourceConfig;
++import org.slf4j.bridge.SLF4JBridgeHandler;
+ 
+ import javax.ws.rs.ApplicationPath;
+ 
+ @ApplicationPath("rest")
+ public class MailRestConfig extends ResourceConfig {
++
+     public MailRestConfig() {
++        // Set Jersey log to SLF4J instead of JUL
++        // http://stackoverflow.com/questions/4121722
++        SLF4JBridgeHandler.install();
+         packages("ru.javaops.masterjava.service.mail.rest");
+     }
+ }
+\ No newline at end of file
+Index: parent-web/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- parent-web/pom.xml	(date 1493996315000)
++++ parent-web/pom.xml	(revision )
+@@ -16,6 +16,10 @@
+     <version>1.0-SNAPSHOT</version>
+     <name>Parent Web</name>
+ 
++    <properties>
++        <maven.resources.overwrite>true</maven.resources.overwrite>
++    </properties>
++
+     <build>
+         <plugins>
+             <plugin>

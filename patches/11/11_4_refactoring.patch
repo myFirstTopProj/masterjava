@@ -1,0 +1,456 @@
+Index: web/webapp/src/main/webapp/WEB-INF/templates/users.html
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/webapp/WEB-INF/templates/users.html	(revision 81efa3db1102742a5425d4b28dd2b13c9eadb9fc)
++++ web/webapp/src/main/webapp/WEB-INF/templates/users.html	(revision )
+@@ -40,7 +40,7 @@
+     <input type="radio" name="transport" onchange="setFormAttr('REST')">REST<br>
+     <input type="radio" name="transport" onchange="setFormAttr('JMS')">JMS<br>
+ 
+-    <form enctype="multipart/form-data" action="send" method=post
++    <form enctype="multipart/form-data" action="sendSoap" method=post
+           target="result" onsubmit="window.open('','result','width=800,height=400,menubar=no');">
+ 
+         <input id="users" name="users" hidden="hidden">
+@@ -63,11 +63,13 @@
+     function setFormAttr(transport) {
+         var form = $("form");
+         if (transport === 'SOAP') {
+-            form.attr("action", 'send');
+-        } else if(transport === 'REST'){
++            form.attr("action", 'sendSoap');
++        } else if (transport === 'REST') {
+             form.attr("action", '/mail/rest/send');
+-        } else {
++        } else if (transport === 'JMS') {
+             form.attr("action", 'sendJms');
++        } else {
++            alert("Unknown transport");
+         }
+     }
+ 
+Index: common/src/main/java/ru/javaops/masterjava/util/Exceptions.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- common/src/main/java/ru/javaops/masterjava/util/Exceptions.java	(revision )
++++ common/src/main/java/ru/javaops/masterjava/util/Exceptions.java	(revision )
+@@ -0,0 +1,27 @@
++package ru.javaops.masterjava.util;
++
++import lombok.experimental.UtilityClass;
++
++/**
++ *  @see <a href="https://github.com/diffplug/durian/blob/master/src/com/diffplug/common/base/Errors.java">full Errors at Durian project</a>
++ */
++@UtilityClass
++public class Exceptions {
++    public static <E extends Exception> java.lang.Runnable wrap(Functions.Specific.Runnable<E> runnableWitEx) {
++        return () -> {
++            try {
++                runnableWitEx.run();
++            } catch (Exception e) {
++                throw asRuntime(e);
++            }
++        };
++    }
++
++    public static RuntimeException asRuntime(Throwable e) {
++        if (e instanceof RuntimeException) {
++            return (RuntimeException) e;
++        } else {
++            return new RuntimeException(e);
++        }
++    }
++}
+Index: web/webapp/src/main/java/ru/javaops/masterjava/webapp/SendServlet.java
+===================================================================
+--- web/webapp/src/main/java/ru/javaops/masterjava/webapp/SendServlet.java	(revision 81efa3db1102742a5425d4b28dd2b13c9eadb9fc)
++++ web/webapp/src/main/java/ru/javaops/masterjava/webapp/SendServlet.java	(revision 81efa3db1102742a5425d4b28dd2b13c9eadb9fc)
+@@ -1,47 +0,0 @@
+-package ru.javaops.masterjava.webapp;
+-
+-import com.google.common.collect.ImmutableList;
+-import lombok.extern.slf4j.Slf4j;
+-import ru.javaops.masterjava.service.mail.Attach;
+-import ru.javaops.masterjava.service.mail.MailWSClient;
+-import ru.javaops.masterjava.service.mail.util.MailUtils;
+-import ru.javaops.web.WebStateException;
+-
+-import javax.servlet.ServletException;
+-import javax.servlet.annotation.MultipartConfig;
+-import javax.servlet.annotation.WebServlet;
+-import javax.servlet.http.HttpServlet;
+-import javax.servlet.http.HttpServletRequest;
+-import javax.servlet.http.HttpServletResponse;
+-import javax.servlet.http.Part;
+-import java.io.IOException;
+-import java.util.List;
+-
+-@WebServlet("/send")
+-@Slf4j
+-@MultipartConfig
+-public class SendServlet extends HttpServlet {
+-    @Override
+-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+-        req.setCharacterEncoding("UTF-8");
+-        resp.setCharacterEncoding("UTF-8");
+-
+-        String users = req.getParameter("users");
+-        String subject = req.getParameter("subject");
+-        String body = req.getParameter("body");
+-        List<Attach> attaches;
+-        Part filePart = req.getPart("attach");
+-        if (filePart == null) {
+-            attaches = ImmutableList.of();
+-        } else {
+-            attaches = ImmutableList.of(MailUtils.getAttach(filePart.getSubmittedFileName(), filePart.getInputStream()));
+-        }
+-        String groupResult;
+-        try {
+-            groupResult = MailWSClient.sendBulk(MailUtils.split(users), subject, body, attaches).toString();
+-        } catch (WebStateException e) {
+-            groupResult = e.toString();
+-        }
+-        resp.getWriter().write(groupResult);
+-    }
+-}
+Index: web/webapp/src/main/java/ru/javaops/masterjava/webapp/SoapSendServlet.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/java/ru/javaops/masterjava/webapp/SoapSendServlet.java	(revision )
++++ web/webapp/src/main/java/ru/javaops/masterjava/webapp/SoapSendServlet.java	(revision )
+@@ -0,0 +1,42 @@
++package ru.javaops.masterjava.webapp;
++
++import com.google.common.collect.ImmutableList;
++import lombok.extern.slf4j.Slf4j;
++import ru.javaops.masterjava.service.mail.Attach;
++import ru.javaops.masterjava.service.mail.MailWSClient;
++import ru.javaops.masterjava.service.mail.util.MailUtils;
++
++import javax.servlet.ServletException;
++import javax.servlet.annotation.MultipartConfig;
++import javax.servlet.annotation.WebServlet;
++import javax.servlet.http.HttpServlet;
++import javax.servlet.http.HttpServletRequest;
++import javax.servlet.http.HttpServletResponse;
++import javax.servlet.http.Part;
++import java.io.IOException;
++import java.util.List;
++
++import static ru.javaops.masterjava.webapp.WebUtil.*;
++
++@WebServlet("/sendSoap")
++@Slf4j
++@MultipartConfig
++public class SoapSendServlet extends HttpServlet {
++    @Override
++    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
++        req.setCharacterEncoding("UTF-8");
++        doAndWriteResponse(resp, () -> {
++            String users = getNotEmptyUsers(req);
++            String subject = req.getParameter("subject");
++            String body = getNotEmptyParam(req, "body");
++            List<Attach> attaches;
++            Part filePart = req.getPart("attach");
++            if (filePart == null) {
++                attaches = ImmutableList.of();
++            } else {
++                attaches = ImmutableList.of(MailUtils.getAttach(filePart.getSubmittedFileName(), filePart.getInputStream()));
++            }
++            return MailWSClient.sendBulk(MailUtils.split(users), subject, body, attaches).toString();
++        });
++    }
++}
+Index: common/src/main/java/ru/javaops/masterjava/util/Functions.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- common/src/main/java/ru/javaops/masterjava/util/Functions.java	(revision )
++++ common/src/main/java/ru/javaops/masterjava/util/Functions.java	(revision )
+@@ -0,0 +1,83 @@
++package ru.javaops.masterjava.util;
++
++/**
++ *  @see <a href="https://github.com/diffplug/durian/blob/master/src/com/diffplug/common/base/Throwing.java">Throwing at Durian project</a>
++ */
++public interface Functions {
++    /**
++     * Variations on the standard functional interfaces which throw a specific subclass of Exception.
++     */
++    interface Specific {
++        @FunctionalInterface
++        interface Runnable<E extends Exception> {
++            void run() throws E;
++        }
++
++        @FunctionalInterface
++        interface Supplier<T, E extends Exception> {
++            T get() throws E;
++        }
++
++        @FunctionalInterface
++        interface Consumer<T, E extends Exception> {
++            void accept(T t) throws E;
++        }
++
++        @FunctionalInterface
++        interface Function<T, R, E extends Exception> {
++            R apply(T t) throws E;
++        }
++
++        @FunctionalInterface
++        interface Predicate<T, E extends Exception> {
++            boolean test(T t) throws E;
++        }
++
++        @FunctionalInterface
++        interface BiConsumer<T, U, E extends Exception> {
++            void accept(T t, U u) throws E;
++        }
++
++        @FunctionalInterface
++        interface BiFunction<T, U, R, E extends Exception> {
++            R apply(T t, U u) throws E;
++        }
++
++        @FunctionalInterface
++        interface BiPredicate<T, U, E extends Exception> {
++            boolean accept(T t, U u) throws E;
++        }
++    }
++
++    @FunctionalInterface
++    interface RunnableEx extends Specific.Runnable<Exception> {
++    }
++
++    @FunctionalInterface
++    interface SupplierEx<T> extends Specific.Supplier<T, Exception> {
++    }
++
++    @FunctionalInterface
++    interface ConsumerEx<T> extends Specific.Consumer<T, Exception> {
++    }
++
++    @FunctionalInterface
++    interface FunctionEx<T, R> extends Specific.Function<T, R, Exception> {
++    }
++
++    @FunctionalInterface
++    interface PredicateEx<T> extends Specific.Predicate<T, Exception> {
++    }
++
++    @FunctionalInterface
++    interface BiConsumerEx<T, U> extends Specific.BiConsumer<T, U, Exception> {
++    }
++
++    @FunctionalInterface
++    interface BiFunctionEx<T, U, R> extends Specific.BiFunction<T, U, R, Exception> {
++    }
++
++    @FunctionalInterface
++    interface BiPredicateEx<T, U> extends Specific.BiPredicate<T, U, Exception> {
++    }
++}
+\ No newline at end of file
+Index: web/webapp/src/main/java/ru/javaops/masterjava/webapp/WebUtil.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/java/ru/javaops/masterjava/webapp/WebUtil.java	(revision )
++++ web/webapp/src/main/java/ru/javaops/masterjava/webapp/WebUtil.java	(revision )
+@@ -0,0 +1,63 @@
++package ru.javaops.masterjava.webapp;
++
++import com.google.common.base.Strings;
++import com.google.common.collect.ImmutableList;
++import lombok.extern.slf4j.Slf4j;
++import org.apache.commons.io.IOUtils;
++import ru.javaops.masterjava.service.mail.util.MailUtils;
++import ru.javaops.masterjava.util.Functions;
++
++import javax.servlet.ServletException;
++import javax.servlet.http.HttpServletRequest;
++import javax.servlet.http.HttpServletResponse;
++import javax.servlet.http.Part;
++import java.io.IOException;
++import java.util.AbstractMap;
++import java.util.List;
++
++import static com.google.common.base.Preconditions.checkArgument;
++
++@Slf4j
++public class WebUtil {
++
++    public static void doAndWriteResponse(HttpServletResponse resp, Functions.SupplierEx<String> doer) throws IOException {
++        resp.setCharacterEncoding("UTF-8");
++        String result;
++        try {
++            log.info("Start processing");
++            result = doer.get();
++            log.info("Processing finished with result: {}", result);
++        } catch (Exception e) {
++            log.error("Processing failed", e);
++            String message = e.getMessage();
++            result = (message != null) ? message : e.getClass().getName();
++        }
++        resp.getWriter().write(result);
++    }
++
++    public static String getNotEmptyUsers(HttpServletRequest req) {
++        String users = req.getParameter("users");
++        checkArgument(!Strings.isNullOrEmpty(users), "Addresses are not selected");
++        return users;
++    }
++
++    public static String getNotEmptyParam(HttpServletRequest req, String param) {
++        String value = req.getParameter(param);
++        checkArgument(!Strings.isNullOrEmpty(value), param + " must not be empty");
++        return value;
++    }
++
++    public static MailUtils.MailObject createMailObject(HttpServletRequest req) throws IOException, ServletException {
++        Part filePart = req.getPart("attach");
++
++        List<AbstractMap.SimpleImmutableEntry<String, byte[]>> attaches;
++        if (filePart.getSize() == 0) {
++            attaches = ImmutableList.of();
++        } else {
++            attaches = ImmutableList.of(
++                    new AbstractMap.SimpleImmutableEntry<>(filePart.getSubmittedFileName(), IOUtils.toByteArray(filePart.getInputStream()))
++            );
++        }
++        return new MailUtils.MailObject(getNotEmptyUsers(req), req.getParameter("subject"), getNotEmptyParam(req, "body"), attaches);
++    }
++}
+Index: services/mail-service/src/main/resources/mail.conf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/resources/mail.conf	(revision 81efa3db1102742a5425d4b28dd2b13c9eadb9fc)
++++ services/mail-service/src/main/resources/mail.conf	(revision )
+@@ -5,7 +5,7 @@
+   password: password
+   useSSL: true
+   useTLS: false
+-  debug: true
++  debug: false
+   fromName: MasterJava
+ }
+ 
+Index: web/webapp/src/main/java/ru/javaops/masterjava/webapp/JmsSendServlet.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/java/ru/javaops/masterjava/webapp/JmsSendServlet.java	(revision 81efa3db1102742a5425d4b28dd2b13c9eadb9fc)
++++ web/webapp/src/main/java/ru/javaops/masterjava/webapp/JmsSendServlet.java	(revision )
+@@ -1,8 +1,6 @@
+ package ru.javaops.masterjava.webapp;
+ 
+-import com.google.common.collect.ImmutableList;
+ import lombok.extern.slf4j.Slf4j;
+-import org.apache.commons.io.IOUtils;
+ import ru.javaops.masterjava.service.mail.util.MailUtils.MailObject;
+ 
+ import javax.jms.*;
+@@ -14,11 +12,10 @@
+ import javax.servlet.http.HttpServlet;
+ import javax.servlet.http.HttpServletRequest;
+ import javax.servlet.http.HttpServletResponse;
+-import javax.servlet.http.Part;
+ import java.io.IOException;
+ import java.lang.IllegalStateException;
+-import java.util.AbstractMap.SimpleImmutableEntry;
+-import java.util.List;
++
++import static ru.javaops.masterjava.webapp.WebUtil.doAndWriteResponse;
+ 
+ @WebServlet("/sendJms")
+ @Slf4j
+@@ -56,33 +53,13 @@
+     @Override
+     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+         req.setCharacterEncoding("UTF-8");
+-        Part filePart = req.getPart("attach");
+-
+-        List<SimpleImmutableEntry<String, byte[]>> attaches;
+-        if (filePart.getSize() == 0) {
+-            attaches = ImmutableList.of();
+-        } else {
+-            attaches = ImmutableList.of(
+-                    new SimpleImmutableEntry<>(filePart.getSubmittedFileName(), IOUtils.toByteArray(filePart.getInputStream()))
+-            );
+-        }
++        doAndWriteResponse(resp, () -> sendJms(WebUtil.createMailObject(req)));
++    }
+ 
+-        MailObject mailObject = new MailObject(req.getParameter("users"), req.getParameter("subject"), req.getParameter("body"), attaches);
+-        resp.getWriter().write(sendJms(mailObject));
+-    }
+-
+-    private synchronized String sendJms(MailObject mailObject) {
+-        String msg;
+-        try {
+-            ObjectMessage om = session.createObjectMessage();
+-            om.setObject(mailObject);
+-            producer.send(om);
+-            msg = "Successfully sent message.";
+-            log.info(msg);
+-        } catch (Exception e) {
+-            msg = "Sending JMS message failed: " + e.getMessage();
+-            log.error(msg, e);
+-        }
+-        return msg;
++    private synchronized String sendJms(MailObject mailObject) throws JMSException {
++        ObjectMessage om = session.createObjectMessage();
++        om.setObject(mailObject);
++        producer.send(om);
++        return "Successfully sent JMS message.";
+     }
+ }
+\ No newline at end of file
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/jms/JmsListener.java
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/jms/JmsListener.java	(revision 81efa3db1102742a5425d4b28dd2b13c9eadb9fc)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/listeners/JmsMailListener.java	(revision )
+@@ -1,4 +1,4 @@
+-package ru.javaops.masterjava.service.mail.jms;
++package ru.javaops.masterjava.service.mail.listeners;
+ 
+ import lombok.extern.slf4j.Slf4j;
+ import org.apache.activemq.ActiveMQConnectionFactory;
+@@ -13,7 +13,7 @@
+ 
+ @WebListener
+ @Slf4j
+-public class JmsListener implements ServletContextListener {
++public class JmsMailListener implements ServletContextListener {
+     private Thread listenerThread = null;
+     private QueueConnection connection;
+ 
+Index: services/mail-service/src/main/resources/logback.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/resources/logback.xml	(revision 81efa3db1102742a5425d4b28dd2b13c9eadb9fc)
++++ services/mail-service/src/main/resources/logback.xml	(revision )
+@@ -39,7 +39,7 @@
+     <logger name="org.hibernate.validator" level="debug"/>
+     <logger name="org.glassfish.jersey" level="trace"/>
+ 
+-    <root level="warn">
++    <root level="info">
+         <appender-ref ref="file"/>
+         <appender-ref ref="console"/>
+     </root>

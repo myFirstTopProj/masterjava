@@ -1,0 +1,106 @@
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java	(date 1493406326000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java	(revision )
+@@ -9,6 +9,8 @@
+ @WebService(endpointInterface = "ru.javaops.masterjava.service.mail.MailService", targetNamespace = "http://mail.javaops.ru/"
+ //          , wsdlLocation = "WEB-INF/wsdl/mailService.wsdl"
+ )
++//@StreamingAttachment(parseEagerly=true, memoryThreshold=40000L)
++//@MTOM
+ public class MailServiceImpl implements MailService {
+ 
+     @Override
+Index: services/common-ws/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/common-ws/pom.xml	(date 1493406326000)
++++ services/common-ws/pom.xml	(revision )
+@@ -50,6 +50,12 @@
+             </exclusions>
+         </dependency>
+ 
++        <dependency>
++            <groupId>org.jvnet.mimepull</groupId>
++            <artifactId>mimepull</artifactId>
++            <version>1.9.4</version>
++        </dependency>
++
+         <dependency>
+             <groupId>javax.activation</groupId>
+             <artifactId>activation</artifactId>
+Index: services/common-ws/src/main/java/ru/javaops/web/WsClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/common-ws/src/main/java/ru/javaops/web/WsClient.java	(date 1493406326000)
++++ services/common-ws/src/main/java/ru/javaops/web/WsClient.java	(revision )
+@@ -7,6 +7,7 @@
+ import javax.xml.namespace.QName;
+ import javax.xml.ws.BindingProvider;
+ import javax.xml.ws.Service;
++import javax.xml.ws.WebServiceFeature;
+ import java.net.URL;
+ import java.util.Map;
+ 
+@@ -31,8 +32,8 @@
+     }
+ 
+     //  Post is not thread-safe (http://stackoverflow.com/a/10601916/548473)
+-    public T getPort() {
+-        T port = service.getPort(serviceClass);
++    public T getPort(WebServiceFeature... features) {
++        T port = service.getPort(serviceClass, features);
+         BindingProvider bp = (BindingProvider) port;
+         Map<String, Object> requestContext = bp.getRequestContext();
+         requestContext.put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, endpointAddress);
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(date 1493406326000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(revision )
+@@ -9,6 +9,7 @@
+ import ru.javaops.web.WsClient;
+ 
+ import javax.xml.namespace.QName;
++import javax.xml.ws.soap.MTOMFeature;
+ import java.util.List;
+ import java.util.Set;
+ 
+@@ -29,7 +30,7 @@
+         log.info("Send mail to '" + to + "' cc '" + cc + "' subject '" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
+         String status;
+         try {
+-            status = WS_CLIENT.getPort().sendToGroup(to, cc, subject, body, attaches);
++            status = getPort().sendToGroup(to, cc, subject, body, attaches);
+             log.info("Sent with status: " + status);
+         } catch (Exception e) {
+             log.error("sendToGroup failed", e);
+@@ -42,7 +43,7 @@
+         log.info("Send mail to '" + to + "' subject '" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
+         GroupResult result;
+         try {
+-            result = WS_CLIENT.getPort().sendBulk(to, subject, body, attaches);
++            result = getPort().sendBulk(to, subject, body, attaches);
+         } catch (WebStateException e) {
+             log.error("sendBulk failed", e);
+             throw WsClient.getWebStateException(e);
+@@ -51,6 +52,10 @@
+         return result;
+     }
+ 
++    private static MailService getPort() {
++        return WS_CLIENT.getPort(new MTOMFeature(1024));
++    }
++
+     public static Set<Addressee> split(String addressees) {
+         Iterable<String> split = Splitter.on(',').trimResults().omitEmptyStrings().split(addressees);
+         return ImmutableSet.copyOf(Iterables.transform(split, Addressee::new));

@@ -1,0 +1,50 @@
+Index: common/src/main/resources/hosts.conf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- common/src/main/resources/hosts.conf	(revision dcac6c076c28383c7afcd0621bba01a6789b858d)
++++ common/src/main/resources/hosts.conf	(revision 3c63fd8640d75a6787c8a3d25f9fc941db55ecd5)
+@@ -1,4 +1,10 @@
+ hosts {
+-  mail = "http://localhost:8080"
++  mail {
++    endpoint = "http://localhost:8080"
++    debug.client = DEBUG
++    debug.server = INFO
++    user = "user"
++    password = "password"
++  }
+ }
+ include file("/apps/masterjava/config/hosts.conf")
+Index: services/common-ws/src/main/java/ru/javaops/web/Statistics.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/common-ws/src/main/java/ru/javaops/web/Statistics.java	(revision 3c63fd8640d75a6787c8a3d25f9fc941db55ecd5)
++++ services/common-ws/src/main/java/ru/javaops/web/Statistics.java	(revision 3c63fd8640d75a6787c8a3d25f9fc941db55ecd5)
+@@ -0,0 +1,23 @@
++package ru.javaops.web;
++
++import lombok.extern.slf4j.Slf4j;
++
++/**
++ * gkislin
++ * 09.01.2017
++ */
++@Slf4j
++public class Statistics {
++    public enum RESULT {
++        SUCCESS, FAIL
++    }
++
++    public static void count(String payload, long startTime, RESULT result) {
++        long now = System.currentTimeMillis();
++        int ms = (int) (now - startTime);
++        log.info(payload + " " + result.name() + " execution time(ms): " + ms);
++        // place for statistics staff
++
++    }
++
++}

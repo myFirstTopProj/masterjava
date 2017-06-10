@@ -1,0 +1,238 @@
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailResult.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailResult.java	(revision )
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailResult.java	(revision )
+@@ -0,0 +1,22 @@
++package ru.javaops.masterjava.service.mail;
++
++import lombok.AllArgsConstructor;
++import lombok.NoArgsConstructor;
++
++@AllArgsConstructor
++@NoArgsConstructor
++public class MailResult {
++    public static final String OK = "OK";
++
++    private String email;
++    private String result;
++
++    public boolean isOk() {
++        return OK.equals(result);
++    }
++
++    @Override
++    public String toString() {
++        return '(' + email + ',' + result + ')';
++    }
++}
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/GroupResult.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/GroupResult.java	(revision )
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/GroupResult.java	(revision )
+@@ -0,0 +1,21 @@
++package ru.javaops.masterjava.service.mail;
++
++import lombok.AllArgsConstructor;
++import lombok.NoArgsConstructor;
++
++import java.util.List;
++
++@AllArgsConstructor
++@NoArgsConstructor
++public class GroupResult {
++    private int success; // number of successfully sent email
++    private List<MailResult> failed; // failed emails with causes
++    private String failedCause;  // global fail cause
++
++    @Override
++    public String toString() {
++        return "Success: " + success + '\n' +
++                "Failed: " + failed.toString() + '\n' +
++                (failedCause == null ? "" : "Failed cause" + failedCause);
++    }
++}
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceExecutor.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceExecutor.java	(date 1492276985000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceExecutor.java	(revision )
+@@ -15,13 +15,13 @@
+     private static final String INTERRUPTED_BY_TIMEOUT = "+++ Interrupted by timeout";
+     private static final String INTERRUPTED_EXCEPTION = "+++ InterruptedException";
+ 
+-    private final ExecutorService mailExecutor = Executors.newFixedThreadPool(8);
++    private static final ExecutorService mailExecutor = Executors.newFixedThreadPool(8);
+ 
+-    public GroupResult sendIndividual(final Set<Addressee> addressees, final String subject, final String body) throws Exception {
++    public static GroupResult sendBulk(final Set<Addressee> addressees, final String subject, final String body) {
+         final CompletionService<MailResult> completionService = new ExecutorCompletionService<>(mailExecutor);
+ 
+         List<Future<MailResult>> futures = StreamEx.of(addressees)
+-                .map(addressee -> completionService.submit(() -> MailSender.sendBulk(addressee, subject, body)))
++                .map(addressee -> completionService.submit(() -> MailSender.sendTo(addressee, subject, body)))
+                 .toList();
+ 
+         return new Callable<GroupResult>() {
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/GroupResult.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/GroupResult.java	(date 1492276985000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/GroupResult.java	(revision )
+@@ -1,14 +1,16 @@
+ package ru.javaops.masterjava.service.mail;
+ 
+ import lombok.AllArgsConstructor;
++import lombok.NoArgsConstructor;
+ 
+ import java.util.List;
+ 
+ @AllArgsConstructor
++@NoArgsConstructor
+ public class GroupResult {
+-    private final int success; // number of successfully sent email
+-    private final List<MailResult> failed; // failed emails with causes
+-    private final String failedCause;  // global fail cause
++    private int success; // number of successfully sent email
++    private List<MailResult> failed; // failed emails with causes
++    private String failedCause;  // global fail cause
+ 
+     @Override
+     public String toString() {
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailSender.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailSender.java	(date 1492276985000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailSender.java	(revision )
+@@ -19,12 +19,12 @@
+ public class MailSender {
+     private static final MailCaseDao MAIL_CASE_DAO = DBIProvider.getDao(MailCaseDao.class);
+ 
+-    static MailResult sendBulk(Addressee to, String subject, String body) {
+-        val state = sendBulk(ImmutableSet.of(to), ImmutableSet.of(), subject, body);
++    static MailResult sendTo(Addressee to, String subject, String body) {
++        val state = sendToGroup(ImmutableSet.of(to), ImmutableSet.of(), subject, body);
+         return new MailResult(to.getEmail(), state);
+     }
+ 
+-    static String sendBulk(Set<Addressee> to, Set<Addressee> cc, String subject, String body) {
++    static String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body) {
+         log.info("Send mail to \'" + to + "\' cc \'" + cc + "\' subject \'" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
+         String state = MailResult.OK;
+         try {
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java	(date 1492276985000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java	(revision )
+@@ -7,7 +7,14 @@
+ //          , wsdlLocation = "WEB-INF/wsdl/mailService.wsdl"
+ )
+ public class MailServiceImpl implements MailService {
+-    public void sendMail(Set<Addressee> to, Set<Addressee> cc, String subject, String body) {
+-        MailSender.sendBulk(to, cc, subject, body);
++
++    @Override
++    public String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body) {
++        return MailSender.sendToGroup(to, cc, subject, body);
++    }
++
++    @Override
++    public GroupResult sendBulk(Set<Addressee> to, String subject, String body) {
++        return MailServiceExecutor.sendBulk(to, subject, body);
+     }
+ }
+\ No newline at end of file
+Index: services/mail-service/src/test/java/ru/javaops/masterjava/service/mail/MailServiceClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/test/java/ru/javaops/masterjava/service/mail/MailServiceClient.java	(date 1492276985000)
++++ services/mail-service/src/test/java/ru/javaops/masterjava/service/mail/MailServiceClient.java	(revision )
+@@ -16,11 +16,11 @@
+ 
+         MailService mailService = service.getPort(MailService.class);
+ 
+-        mailService.sendMail(ImmutableSet.of(
++        mailService.sendToGroup(ImmutableSet.of(
+                 new Addressee("gkislin@javaops.ru"),
+                 new Addressee("Bad Email <bad_email.ru>")), ImmutableSet.of(), "Subject", "Body");
+ 
+-        mailService.sendMail(
++        mailService.sendToGroup(
+                 ImmutableSet.of(new Addressee("Григорий Кислин <gkislin@javaops.ru>")),
+                 ImmutableSet.of(new Addressee("Мастер Java <masterjava@javaops.ru>")), "Subject", "Body");
+     }
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/Addressee.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/Addressee.java	(date 1492276985000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/Addressee.java	(revision )
+@@ -4,10 +4,6 @@
+ import lombok.Data;
+ import lombok.NoArgsConstructor;
+ 
+-/**
+- * gkislin
+- * 15.11.2016
+- */
+ @Data
+ @AllArgsConstructor
+ @NoArgsConstructor
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailService.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailService.java	(date 1492276985000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailService.java	(revision )
+@@ -13,9 +13,16 @@
+ public interface MailService {
+ 
+     @WebMethod
+-    void sendMail(
++    String sendToGroup(
+             @WebParam(name = "to") Set<Addressee> to,
+             @WebParam(name = "cc") Set<Addressee> cc,
+             @WebParam(name = "subject") String subject,
+             @WebParam(name = "body") String body);
++
++    @WebMethod
++    GroupResult sendBulk(
++            @WebParam(name = "to") Set<Addressee> to,
++            @WebParam(name = "subject") String subject,
++            @WebParam(name = "body") String body);
++
+ }
+\ No newline at end of file
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(date 1492276985000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(revision )
+@@ -22,6 +22,6 @@
+ 
+     public static void sendMail(final Set<Addressee> to, final Set<Addressee> cc, final String subject, final String body) {
+         log.info("Send mail to '" + to + "' cc '" + cc + "' subject '" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
+-        WS_CLIENT.getPort().sendMail(to, cc, subject, body);
++        WS_CLIENT.getPort().sendToGroup(to, cc, subject, body);
+     }
+ }

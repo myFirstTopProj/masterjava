@@ -1,0 +1,169 @@
+Index: services/akka-remote/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/akka-remote/pom.xml	(revision )
++++ services/akka-remote/pom.xml	(revision )
+@@ -0,0 +1,46 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project xmlns="http://maven.apache.org/POM/4.0.0"
++         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++
++    <parent>
++        <groupId>ru.javaops</groupId>
++        <artifactId>parent-web</artifactId>
++        <relativePath>../../parent-web/pom.xml</relativePath>
++        <version>1.0-SNAPSHOT</version>
++    </parent>
++
++    <artifactId>akka-remote</artifactId>
++    <version>1.0-SNAPSHOT</version>
++    <name>Akka Remote</name>
++
++    <dependencies>
++        <dependency>
++            <groupId>${project.groupId}</groupId>
++            <artifactId>common</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>com.typesafe.akka</groupId>
++            <artifactId>akka-remote_2.12</artifactId>
++            <version>2.5.1</version>
++            <exclusions>
++                <exclusion>
++                    <groupId>com.typesafe</groupId>
++                    <artifactId>config</artifactId>
++                </exclusion>
++                <exclusion>
++                    <groupId>org.scala-lang</groupId>
++                    <artifactId>scala-library</artifactId>
++                </exclusion>
++            </exclusions>
++        </dependency>
++        <dependency>
++            <groupId>org.scala-lang</groupId>
++            <artifactId>scala-library</artifactId>
++            <version>2.12.2</version>
++        </dependency>
++    </dependencies>
++</project>
+\ No newline at end of file
+Index: config_templates/akka.conf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- config_templates/akka.conf	(revision )
++++ config_templates/akka.conf	(revision )
+@@ -0,0 +1,15 @@
++webapp {
++  include required(classpath("akka-common"))
++
++  akka {
++    remote.netty.tcp.port = 2554
++  }
++}
++
++mail-service {
++  include required(classpath("akka-common"))
++
++  akka {
++    remote.netty.tcp.port = 2553
++  }
++}
+\ No newline at end of file
+Index: services/akka-remote/src/main/resources/akka-common.conf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/akka-remote/src/main/resources/akka-common.conf	(revision )
++++ services/akka-remote/src/main/resources/akka-common.conf	(revision )
+@@ -0,0 +1,12 @@
++akka {
++  actor {
++    provider = "akka.remote.RemoteActorRefProvider"
++  }
++
++  remote {
++    netty.tcp {
++      hostname = "127.0.0.1"
++      maximum-frame-size = 10000000b
++    }
++  }
++}
+\ No newline at end of file
+Index: services/akka-remote/src/main/java/ru/javaops/masterjava/akka/AkkaActivator.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/akka-remote/src/main/java/ru/javaops/masterjava/akka/AkkaActivator.java	(revision )
++++ services/akka-remote/src/main/java/ru/javaops/masterjava/akka/AkkaActivator.java	(revision )
+@@ -0,0 +1,28 @@
++package ru.javaops.masterjava.akka;
++
++import akka.actor.ActorSystem;
++import lombok.extern.slf4j.Slf4j;
++import ru.javaops.masterjava.config.Configs;
++
++@Slf4j
++public class AkkaActivator {
++    private static final String AKKA_CONF = "akka.conf";
++
++    private ActorSystem system;
++
++    private AkkaActivator(String actorSystemName, String nodeName) {
++        log.info("Start AKKA System {} : {}", actorSystemName, nodeName);
++        system = ActorSystem.create(actorSystemName, Configs.getAppConfig(AKKA_CONF).getConfig(nodeName));
++    }
++
++    public static AkkaActivator start(String actorSystemName, String configName) {
++        return new AkkaActivator(actorSystemName, configName);
++    }
++
++    public void shutdown() {
++        if (system != null) {
++            log.info("Akka system shutdown");
++            system.terminate();
++        }
++    }
++}
+Index: common/src/main/java/ru/javaops/masterjava/config/Configs.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- common/src/main/java/ru/javaops/masterjava/config/Configs.java	(date 1495305855000)
++++ common/src/main/java/ru/javaops/masterjava/config/Configs.java	(revision )
+@@ -15,6 +15,10 @@
+         return getConfig(resource).getConfig(domain);
+     }
+ 
++    public static Config getAppConfig(String path) {
++        return ConfigFactory.parseFile(getConfigFile(path)).resolve();
++    }
++
+     public static File getConfigFile(String path) {
+         return new File(AppConfig.APP_CONFIG.getString("configDir"), path);
+     }
+Index: services/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/pom.xml	(date 1495305855000)
++++ services/pom.xml	(revision )
+@@ -9,6 +9,7 @@
+ 
+     <name>MasterJava Services</name>
+     <modules>
++        <module>akka-remote</module>
+         <module>common-ws</module>
+         <module>mail-api</module>
+         <module>mail-service</module>

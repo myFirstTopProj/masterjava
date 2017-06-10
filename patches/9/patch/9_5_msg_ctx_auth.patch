@@ -1,0 +1,142 @@
+Index: services/common-ws/src/main/java/ru/javaops/web/AuthUtil.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/common-ws/src/main/java/ru/javaops/web/AuthUtil.java	(revision )
++++ services/common-ws/src/main/java/ru/javaops/web/AuthUtil.java	(revision )
+@@ -0,0 +1,32 @@
++package ru.javaops.web;
++
++import lombok.extern.slf4j.Slf4j;
++
++import javax.servlet.http.HttpServletResponse;
++import javax.xml.bind.DatatypeConverter;
++import java.util.List;
++import java.util.Map;
++
++@Slf4j
++public class AuthUtil {
++    private static final String AUTHORIZATION = "Authorization";
++
++    public static String encodeBasicAuthHeader(String name, String passw) {
++        String authString = name + ":" + passw;
++        return "Basic " + DatatypeConverter.printBase64Binary(authString.getBytes());
++    }
++
++    public static int checkBasicAuth(Map<String, List<String>> headers, String basicAuthCredentials) {
++        List<String> autHeaders = headers.get(AUTHORIZATION);
++        if ((autHeaders == null || autHeaders.isEmpty())) {
++            log.warn("Unauthorized access");
++            return HttpServletResponse.SC_UNAUTHORIZED;
++        } else {
++            if (!autHeaders.get(0).equals(basicAuthCredentials)) {
++                log.warn("Wrong password access");
++                return HttpServletResponse.SC_FORBIDDEN;
++            }
++            return 0;
++        }
++    }
++}
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java	(date 1493415590000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java	(revision )
+@@ -1,9 +1,14 @@
+ package ru.javaops.masterjava.service.mail;
+ 
++import ru.javaops.web.AuthUtil;
+ import ru.javaops.web.WebStateException;
+ 
++import javax.annotation.Resource;
+ import javax.jws.WebService;
++import javax.xml.ws.WebServiceContext;
++import javax.xml.ws.handler.MessageContext;
+ import java.util.List;
++import java.util.Map;
+ import java.util.Set;
+ 
+ @WebService(endpointInterface = "ru.javaops.masterjava.service.mail.MailService", targetNamespace = "http://mail.javaops.ru/"
+@@ -13,8 +18,22 @@
+ //@MTOM
+ public class MailServiceImpl implements MailService {
+ 
++    @Resource
++    private WebServiceContext wsContext;
++
+     @Override
+     public String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body, List<Attach> attaches) throws WebStateException {
++        MessageContext mCtx = wsContext.getMessageContext();
++        Map<String, List<String>> headers = (Map<String, List<String>>) mCtx.get(MessageContext.HTTP_REQUEST_HEADERS);
++
++//        HttpServletRequest request = (HttpServletRequest) mCtx.get(MessageContext.SERVLET_REQUEST);
++//        HttpServletResponse response = (HttpServletResponse) mCtx.get(MessageContext.SERVLET_RESPONSE);
++
++        int code = AuthUtil.checkBasicAuth(headers, MailWSClient.AUTH_HEADER);
++        if (code != 0) {
++            mCtx.put(MessageContext.HTTP_RESPONSE_CODE, code);
++            throw new SecurityException();
++        }
+         return MailSender.sendToGroup(to, cc, subject, body, attaches);
+     }
+ 
+Index: services/common-ws/src/main/java/ru/javaops/web/WsClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/common-ws/src/main/java/ru/javaops/web/WsClient.java	(date 1493415590000)
++++ services/common-ws/src/main/java/ru/javaops/web/WsClient.java	(revision )
+@@ -40,6 +40,12 @@
+         return port;
+     }
+ 
++    public static <T> void setAuth(T port, String user, String password) {
++        Map<String, Object> requestContext = ((BindingProvider) port).getRequestContext();
++        requestContext.put(BindingProvider.USERNAME_PROPERTY, user);
++        requestContext.put(BindingProvider.PASSWORD_PROPERTY, password);
++    }
++
+     public static WebStateException getWebStateException(Exception e) {
+         return (e instanceof WebStateException) ?
+                 (WebStateException) e : new WebStateException(ExceptionType.NETWORK, e);
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(date 1493415590000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(revision )
+@@ -5,6 +5,7 @@
+ import com.google.common.collect.Iterables;
+ import com.google.common.io.Resources;
+ import lombok.extern.slf4j.Slf4j;
++import ru.javaops.web.AuthUtil;
+ import ru.javaops.web.WebStateException;
+ import ru.javaops.web.WsClient;
+ 
+@@ -16,6 +17,10 @@
+ @Slf4j
+ public class MailWSClient {
+     private static final WsClient<MailService> WS_CLIENT;
++    public static final String USER = "user";
++    public static final String PASSWORD = "password";
++
++    public static String AUTH_HEADER = AuthUtil.encodeBasicAuthHeader(USER, PASSWORD);
+ 
+     static {
+         WS_CLIENT = new WsClient<MailService>(Resources.getResource("wsdl/mailService.wsdl"),
+@@ -53,7 +58,9 @@
+     }
+ 
+     private static MailService getPort() {
+-        return WS_CLIENT.getPort(new MTOMFeature(1024));
++        MailService port = WS_CLIENT.getPort(new MTOMFeature(1024));
++        WsClient.setAuth(port, USER, PASSWORD);
++        return port;
+     }
+ 
+     public static Set<Addressee> split(String addressees) {

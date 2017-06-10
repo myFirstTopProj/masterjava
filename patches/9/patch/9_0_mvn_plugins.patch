@@ -1,0 +1,110 @@
+Index: persist/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- persist/pom.xml	(revision 9aba595804472679d75fe4f3ce2016e9ecec46ed)
++++ persist/pom.xml	(revision c744f3ea11c0a6d871ad0ee3629dcfabdf1613f9)
+@@ -31,6 +31,30 @@
+                     </execution>
+                 </executions>
+             </plugin>
++
++            <!--http://www.liquibase.org/documentation/maven/            -->
++            <plugin>
++                <groupId>org.liquibase</groupId>
++                <artifactId>liquibase-maven-plugin</artifactId>
++                <version>3.5.3</version>
++                <configuration>
++                    <changeLogFile>../sql/databaseChangeLog.sql</changeLogFile>
++                    <driver>org.postgresql.Driver</driver>
++                    <url>jdbc:postgresql://localhost:5432/masterjava</url>
++                    <username>user</username>
++                    <password>password</password>
++                    <!--<propertyFile>${masterjava.config}/liquibase.properties</propertyFile>-->
++                    <!--<propertyFileWillOverride>true</propertyFileWillOverride>-->
++                </configuration>
++                <executions>
++                    <execution>
++                        <phase>process-resources</phase>
++                        <goals>
++                            <goal>update</goal>
++                        </goals>
++                    </execution>
++                </executions>
++            </plugin>
+         </plugins>
+     </build>
+ 
+Index: services/mail-service/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/pom.xml	(revision 9aba595804472679d75fe4f3ce2016e9ecec46ed)
++++ services/mail-service/pom.xml	(revision c744f3ea11c0a6d871ad0ee3629dcfabdf1613f9)
+@@ -21,31 +21,24 @@
+         <plugins>
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-war-plugin</artifactId>
+-                <version>3.0.0</version>
+-                <configuration>
+-                    <failOnMissingWebXml>false</failOnMissingWebXml>
+-                    <webResources>
+-                        <resource>
+-                            <directory>src/main/webapp</directory>
+-                        </resource>
+-                        <resource>
+-                            <directory>${masterjava.config}</directory>
+-                            <includes>
+-                                <include>version.html</include>
+-                            </includes>
+-                            <filtering>true</filtering>
+-                        </resource>
+-                        <resource>
+-                            <directory>${masterjava.config}</directory>
+-                            <includes>
+-                                <include>wsdl/mailService.wsdl</include>
+-                                <include>wsdl/common.xsd</include>
+-                            </includes>
+-                            <targetPath>WEB-INF</targetPath>
+-                        </resource>
+-                    </webResources>
+-                </configuration>
++                <artifactId>maven-antrun-plugin</artifactId>
++                <version>1.8</version>
++                <executions>
++                    <execution>
++                        <phase>prepare-package</phase>
++                        <goals>
++                            <goal>run</goal>
++                        </goals>
++                        <configuration>
++                            <target>
++                                <copy todir="target/mail/WEB-INF/wsdl">
++                                    <!--https://ant.apache.org/manual/Types/selectors.html-->
++                                    <fileset dir="${masterjava.config}/wsdl" includes="mailService.wsdl,common.xsd"/>
++                                </copy>
++                            </target>
++                        </configuration>
++                    </execution>
++                </executions>
+             </plugin>
+         </plugins>
+     </build>
+Index: config_templates/sql/databaseChangeLog.sql
+===================================================================
+--- config_templates/sql/databaseChangeLog.sql	(revision 9aba595804472679d75fe4f3ce2016e9ecec46ed)
++++ sql/databaseChangeLog.sql	(revision c744f3ea11c0a6d871ad0ee3629dcfabdf1613f9)
+@@ -1,0 +1,0 @@
+Index: config_templates/sql/initDB.sql
+===================================================================
+--- config_templates/sql/initDB.sql	(revision 9aba595804472679d75fe4f3ce2016e9ecec46ed)
++++ sql/initDB.sql	(revision c744f3ea11c0a6d871ad0ee3629dcfabdf1613f9)
+@@ -1,0 +1,0 @@
+Index: config_templates/sql/lb_apply.bat
+===================================================================
+--- config_templates/sql/lb_apply.bat	(revision 9aba595804472679d75fe4f3ce2016e9ecec46ed)
++++ sql/lb_apply.bat	(revision c744f3ea11c0a6d871ad0ee3629dcfabdf1613f9)
+@@ -1,0 +1,0 @@

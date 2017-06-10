@@ -1,0 +1,386 @@
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/util/MailUtils.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/util/MailUtils.java	(revision )
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/util/MailUtils.java	(revision )
+@@ -0,0 +1,70 @@
++package ru.javaops.masterjava.service.mail.util;
++
++import com.google.common.base.Splitter;
++import com.google.common.collect.ImmutableSet;
++import com.google.common.collect.Iterables;
++import com.sun.istack.NotNull;
++import lombok.AllArgsConstructor;
++import lombok.Data;
++import org.apache.commons.io.IOUtils;
++import org.apache.commons.io.input.CloseShieldInputStream;
++import ru.javaops.masterjava.service.mail.Addressee;
++import ru.javaops.masterjava.service.mail.Attach;
++
++import javax.activation.DataHandler;
++import javax.activation.DataSource;
++import java.io.*;
++import java.util.Set;
++
++public class MailUtils {
++
++    public static Set<Addressee> split(String addressees) {
++        Iterable<String> split = Splitter.on(',').trimResults().omitEmptyStrings().split(addressees);
++        return ImmutableSet.copyOf(Iterables.transform(split, Addressee::new));
++    }
++
++    @Data
++    @AllArgsConstructor
++    public static class MailObject implements Serializable {
++        private @NotNull String users;
++        private String subject;
++        private @NotNull String body;
++        private String attachName;
++        private byte[] attachData;
++    }
++
++    public static MailObject getMailObject(String users, String subject, String body, String name, InputStream is) {
++        try {
++            return new MailObject(users, subject, body, name, is == null ? null : IOUtils.toByteArray(is));
++        } catch (IOException e) {
++            throw new IllegalStateException(e);
++        }
++    }
++
++    public static Attach getAttach(String name, byte[] attachData) {
++        return new Attach(name, new DataHandler((ProxyDataSource) () -> new ByteArrayInputStream(attachData)));
++    }
++
++    public static Attach getAttach(String name, InputStream inputStream) {
++        //    http://stackoverflow.com/questions/2830561/how-to-convert-an-inputstream-to-a-datahandler
++        //    http://stackoverflow.com/a/5924019/548473
++        return new Attach(name, new DataHandler((ProxyDataSource) () -> new CloseShieldInputStream(inputStream)));
++    }
++
++    public interface ProxyDataSource extends DataSource {
++        @Override
++        default OutputStream getOutputStream() throws IOException {
++            throw new UnsupportedOperationException("Not implemented");
++        }
++
++        @Override
++        default String getContentType() {
++            return "application/octet-stream";
++        }
++
++        @Override
++        default String getName() {
++            return "";
++        }
++    }
++}
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRS.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRS.java	(date 1494629592000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRS.java	(revision )
+@@ -9,8 +9,7 @@
+ import ru.javaops.masterjava.service.mail.Attach;
+ import ru.javaops.masterjava.service.mail.GroupResult;
+ import ru.javaops.masterjava.service.mail.MailServiceExecutor;
+-import ru.javaops.masterjava.service.mail.MailWSClient;
+-import ru.javaops.masterjava.service.mail.util.Attachments;
++import ru.javaops.masterjava.service.mail.util.MailUtils;
+ import ru.javaops.web.WebStateException;
+ 
+ import javax.activation.DataHandler;
+@@ -48,11 +47,11 @@
+                 String utf8name = new String(attachName.getBytes("ISO8859_1"), "UTF-8");
+                 BodyPartEntity bodyPartEntity = ((BodyPartEntity) attachBodyPart.getEntity());
+ 
+-                attaches = ImmutableList.of(new Attach(utf8name, new DataHandler((Attachments.ProxyDataSource) bodyPartEntity::getInputStream)));
++                attaches = ImmutableList.of(new Attach(utf8name, new DataHandler((MailUtils.ProxyDataSource) bodyPartEntity::getInputStream)));
+             } catch (UnsupportedEncodingException e) {
+                 throw new IllegalStateException(e);
+             }
+         }
+-        return MailServiceExecutor.sendBulk(MailWSClient.split(users), subject, body, attaches);
++        return MailServiceExecutor.sendBulk(MailUtils.split(users), subject, body, attaches);
+     }
+ }
+\ No newline at end of file
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/util/Attachments.java
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/util/Attachments.java	(date 1494629592000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/util/Attachments.java	(date 1494629592000)
+@@ -1,47 +0,0 @@
+-package ru.javaops.masterjava.service.mail.util;
+-
+-import lombok.AllArgsConstructor;
+-import org.apache.commons.io.input.CloseShieldInputStream;
+-import ru.javaops.masterjava.service.mail.Attach;
+-
+-import javax.activation.DataHandler;
+-import javax.activation.DataSource;
+-import java.io.IOException;
+-import java.io.InputStream;
+-import java.io.OutputStream;
+-
+-public class Attachments {
+-    public static Attach getAttach(String name, InputStream inputStream) {
+-        return new Attach(name, new DataHandler(new InputStreamDataSource(inputStream)));
+-    }
+-
+-    //    http://stackoverflow.com/questions/2830561/how-to-convert-an-inputstream-to-a-datahandler
+-    //    http://stackoverflow.com/a/5924019/548473
+-
+-    @AllArgsConstructor
+-    private static class InputStreamDataSource implements ProxyDataSource {
+-        private InputStream inputStream;
+-
+-        @Override
+-        public InputStream getInputStream() throws IOException {
+-            return new CloseShieldInputStream(inputStream);
+-        }
+-    }
+-
+-    public interface ProxyDataSource extends DataSource {
+-        @Override
+-        default OutputStream getOutputStream() throws IOException {
+-            throw new UnsupportedOperationException("Not implemented");
+-        }
+-
+-        @Override
+-        default String getContentType() {
+-            return "application/octet-stream";
+-        }
+-
+-        @Override
+-        default String getName() {
+-            return "";
+-        }
+-    }
+-}
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceExecutor.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceExecutor.java	(date 1494629592000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceExecutor.java	(revision )
+@@ -1,7 +1,11 @@
+ package ru.javaops.masterjava.service.mail;
+ 
++import com.google.common.collect.ImmutableList;
+ import lombok.extern.slf4j.Slf4j;
+ import one.util.streamex.StreamEx;
++import ru.javaops.masterjava.service.mail.util.MailUtils;
++import ru.javaops.masterjava.service.mail.util.MailUtils.MailObject;
++import ru.javaops.web.WebStateException;
+ 
+ import java.util.ArrayList;
+ import java.util.List;
+@@ -63,4 +67,18 @@
+             }
+         }.call();
+     }
++
++    public static void sendAsync(MailObject mailObject) {
++        Set<Addressee> addressees = MailUtils.split(mailObject.getUsers());
++        addressees.forEach(addressee ->
++                mailExecutor.submit(() -> {
++                    try {
++                        MailSender.sendTo(addressee, mailObject.getSubject(), mailObject.getBody(),
++                                ImmutableList.of(MailUtils.getAttach(mailObject.getAttachName(), mailObject.getAttachData())));
++                    } catch (WebStateException e) {
++                        // already logged
++                    }
++                })
++        );
++    }
+ }
+\ No newline at end of file
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/jms/JmsListener.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/jms/JmsListener.java	(date 1494629592000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/jms/JmsListener.java	(revision )
+@@ -1,6 +1,9 @@
+ package ru.javaops.masterjava.service.mail.jms;
+ 
+ import lombok.extern.slf4j.Slf4j;
++import org.apache.activemq.ActiveMQConnectionFactory;
++import ru.javaops.masterjava.service.mail.MailServiceExecutor;
++import ru.javaops.masterjava.service.mail.util.MailUtils.MailObject;
+ 
+ import javax.jms.*;
+ import javax.naming.InitialContext;
+@@ -18,8 +21,9 @@
+     public void contextInitialized(ServletContextEvent sce) {
+         try {
+             InitialContext initCtx = new InitialContext();
+-            QueueConnectionFactory connectionFactory =
+-                    (QueueConnectionFactory) initCtx.lookup("java:comp/env/jms/ConnectionFactory");
++            ActiveMQConnectionFactory connectionFactory =
++                    (ActiveMQConnectionFactory) initCtx.lookup("java:comp/env/jms/ConnectionFactory");
++            connectionFactory.setTrustAllPackages(true);
+             connection = connectionFactory.createQueueConnection();
+             QueueSession queueSession = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+             Queue queue = (Queue) initCtx.lookup("java:comp/env/jms/queue/MailQueue");
+@@ -30,11 +34,11 @@
+                 try {
+                     while (!Thread.interrupted()) {
+                         Message m = receiver.receive();
+-                        // TODO implement mail sending
+-                        if (m instanceof TextMessage) {
+-                            TextMessage tm = (TextMessage) m;
+-                            String text = tm.getText();
+-                            log.info(String.format("Received TextMessage with text '%s'.", text));
++                        if (m instanceof ObjectMessage) {
++                            ObjectMessage om = (ObjectMessage) m;
++                            MailObject mailObject = (MailObject) om.getObject();
++                            log.info("Received MailObject {}", mailObject);
++                            MailServiceExecutor.sendAsync(mailObject);
+                         }
+                     }
+                 } catch (Exception e) {
+Index: web/webapp/src/main/java/ru/javaops/masterjava/webapp/JmsSendServlet.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/java/ru/javaops/masterjava/webapp/JmsSendServlet.java	(date 1494629592000)
++++ web/webapp/src/main/java/ru/javaops/masterjava/webapp/JmsSendServlet.java	(revision )
+@@ -1,20 +1,25 @@
+ package ru.javaops.masterjava.webapp;
+ 
+ import lombok.extern.slf4j.Slf4j;
++import ru.javaops.masterjava.service.mail.util.MailUtils;
++import ru.javaops.masterjava.service.mail.util.MailUtils.MailObject;
+ 
+ import javax.jms.*;
+ import javax.naming.InitialContext;
+ import javax.servlet.ServletConfig;
+ import javax.servlet.ServletException;
++import javax.servlet.annotation.MultipartConfig;
+ import javax.servlet.annotation.WebServlet;
+ import javax.servlet.http.HttpServlet;
+ import javax.servlet.http.HttpServletRequest;
+ import javax.servlet.http.HttpServletResponse;
++import javax.servlet.http.Part;
+ import java.io.IOException;
+ import java.lang.IllegalStateException;
+ 
+ @WebServlet("/sendJms")
+ @Slf4j
++@MultipartConfig
+ public class JmsSendServlet extends HttpServlet {
+     private Connection connection;
+     private Session session;
+@@ -48,18 +53,24 @@
+     @Override
+     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+         req.setCharacterEncoding("UTF-8");
+-        String users = req.getParameter("users");
+-        String subject = req.getParameter("subject");
+-        String body = req.getParameter("body");
+-        resp.getWriter().write(sendJms(users, subject, body));
++        Part filePart = req.getPart("attach");
++
++        MailObject mailObject = MailUtils.getMailObject(
++                req.getParameter("users"),
++                req.getParameter("subject"),
++                req.getParameter("body"),
++                filePart == null ? null : filePart.getSubmittedFileName(),
++                filePart == null ? null : filePart.getInputStream());
++
++        resp.getWriter().write(sendJms(mailObject));
+     }
+ 
+-    private synchronized String sendJms(String users, String subject, String body) {
++    private synchronized String sendJms(MailObject mailObject) {
+         String msg;
+         try {
+-            TextMessage testMessage = session.createTextMessage();
+-            testMessage.setText(subject);
+-            producer.send(testMessage);
++            ObjectMessage om = session.createObjectMessage();
++            om.setObject(mailObject);
++            producer.send(om);
+             msg = "Successfully sent message.";
+             log.info(msg);
+         } catch (Exception e) {
+Index: web/webapp/src/main/webapp/WEB-INF/templates/users.html
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/webapp/WEB-INF/templates/users.html	(date 1494629592000)
++++ web/webapp/src/main/webapp/WEB-INF/templates/users.html	(revision )
+@@ -68,7 +68,6 @@
+             form.attr("action", '/mail/rest/send');
+         } else {
+             form.attr("action", 'sendJms');
+-            form.attr("enctype", 'application/x-www-form-urlencoded');
+         }
+     }
+ 
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(date 1494629592000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(revision )
+@@ -1,8 +1,5 @@
+ package ru.javaops.masterjava.service.mail;
+ 
+-import com.google.common.base.Splitter;
+-import com.google.common.collect.ImmutableSet;
+-import com.google.common.collect.Iterables;
+ import com.google.common.io.Resources;
+ import lombok.extern.slf4j.Slf4j;
+ import ru.javaops.web.WebStateException;
+@@ -56,11 +53,6 @@
+         return WS_CLIENT.getPort(new MTOMFeature(1024));
+     }
+ 
+-    public static Set<Addressee> split(String addressees) {
+-        Iterable<String> split = Splitter.on(',').trimResults().omitEmptyStrings().split(addressees);
+-        return ImmutableSet.copyOf(Iterables.transform(split, Addressee::new));
+-    }
+-
+     public static WsClient.HostConfig getHostConfig() {
+         return WS_CLIENT.getHostConfig();
+     }
+Index: web/webapp/src/main/java/ru/javaops/masterjava/webapp/SendServlet.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/java/ru/javaops/masterjava/webapp/SendServlet.java	(date 1494629592000)
++++ web/webapp/src/main/java/ru/javaops/masterjava/webapp/SendServlet.java	(revision )
+@@ -4,7 +4,7 @@
+ import lombok.extern.slf4j.Slf4j;
+ import ru.javaops.masterjava.service.mail.Attach;
+ import ru.javaops.masterjava.service.mail.MailWSClient;
+-import ru.javaops.masterjava.service.mail.util.Attachments;
++import ru.javaops.masterjava.service.mail.util.MailUtils;
+ import ru.javaops.web.WebStateException;
+ 
+ import javax.servlet.ServletException;
+@@ -34,11 +34,11 @@
+         if (filePart == null) {
+             attaches = ImmutableList.of();
+         } else {
+-            attaches = ImmutableList.of(Attachments.getAttach(filePart.getSubmittedFileName(), filePart.getInputStream()));
++            attaches = ImmutableList.of(MailUtils.getAttach(filePart.getSubmittedFileName(), filePart.getInputStream()));
+         }
+         String groupResult;
+         try {
+-            groupResult = MailWSClient.sendBulk(MailWSClient.split(users), subject, body, attaches).toString();
++            groupResult = MailWSClient.sendBulk(MailUtils.split(users), subject, body, attaches).toString();
+         } catch (WebStateException e) {
+             groupResult = e.toString();
+         }

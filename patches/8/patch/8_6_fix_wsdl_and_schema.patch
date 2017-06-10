@@ -1,0 +1,92 @@
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/Addressee.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/Addressee.java	(date 1492820861000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/Addressee.java	(revision )
+@@ -1,14 +1,22 @@
+ package ru.javaops.masterjava.service.mail;
+ 
+ import lombok.AllArgsConstructor;
+-import lombok.Data;
++import lombok.Getter;
+ import lombok.NoArgsConstructor;
+ 
+-@Data
++import javax.xml.bind.annotation.XmlAccessType;
++import javax.xml.bind.annotation.XmlAccessorType;
++import javax.xml.bind.annotation.XmlAttribute;
++import javax.xml.bind.annotation.XmlValue;
++
++@Getter
+ @AllArgsConstructor
+ @NoArgsConstructor
++@XmlAccessorType(XmlAccessType.FIELD)
+ public class Addressee {
++    @XmlAttribute
+     private String email;
++    @XmlValue
+     private String name;
+ 
+     public Addressee(String email) {
+Index: common/src/main/java/ru/javaops/masterjava/ExceptionType.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- common/src/main/java/ru/javaops/masterjava/ExceptionType.java	(date 1492820861000)
++++ common/src/main/java/ru/javaops/masterjava/ExceptionType.java	(revision )
+@@ -1,5 +1,8 @@
+ package ru.javaops.masterjava;
+ 
++import javax.xml.bind.annotation.XmlType;
++
++@XmlType(namespace = "http://common.javaops.ru/")
+ public enum ExceptionType {
+     SYSTEM("Системная ошибка"),
+     DATA_BASE("Ошибка базы данных"),
+Index: config_templates/wsdl/common.xsd
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- config_templates/wsdl/common.xsd	(date 1492820861000)
++++ config_templates/wsdl/common.xsd	(revision )
+@@ -1,12 +1,14 @@
+ <?xml version="1.0" encoding="UTF-8"?>
++<!--http://stackoverflow.com/questions/17295588/xmlntns-and-targetnamespace-->
+ <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
++           xmlns:tns="http://common.javaops.ru/"
+            targetNamespace="http://common.javaops.ru/">
+ 
+-    <xs:element name="webStateException" nillable="true" type="faultInfo"/>
++    <xs:element name="webStateException" nillable="true" type="tns:faultInfo"/>
+ 
+     <xs:complexType name="faultInfo">
+         <xs:sequence>
+-            <xs:element name="type" type="exceptionType" minOccurs="0" maxOccurs="1"/>
++            <xs:element name="type" type="tns:exceptionType" minOccurs="0" maxOccurs="1"/>
+         </xs:sequence>
+     </xs:complexType>
+ 
+Index: services/common-ws/src/main/java/ru/javaops/web/FaultInfo.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/common-ws/src/main/java/ru/javaops/web/FaultInfo.java	(date 1492820861000)
++++ services/common-ws/src/main/java/ru/javaops/web/FaultInfo.java	(revision )
+@@ -6,9 +6,12 @@
+ import lombok.RequiredArgsConstructor;
+ import ru.javaops.masterjava.ExceptionType;
+ 
++import javax.xml.bind.annotation.XmlType;
++
+ @Data
+ @RequiredArgsConstructor
+ @NoArgsConstructor
++@XmlType(namespace = "http://common.javaops.ru/")
+ public class FaultInfo {
+     private @NonNull ExceptionType type;
+ 

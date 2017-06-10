@@ -1,0 +1,31 @@
+Index: services/akka-remote/src/main/java/ru/javaops/masterjava/akka/AkkaActivator.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/akka-remote/src/main/java/ru/javaops/masterjava/akka/AkkaActivator.java	(revision 9f77d43e74ec06f3594eaf3d5353717bf043cc00)
++++ services/akka-remote/src/main/java/ru/javaops/masterjava/akka/AkkaActivator.java	(revision d862048cfd70153aa215a6927ee029ed02a4f49f)
+@@ -2,9 +2,13 @@
+ 
+ import akka.actor.*;
+ import akka.japi.Creator;
++import akka.util.Timeout;
+ import lombok.extern.slf4j.Slf4j;
+ import ru.javaops.masterjava.config.Configs;
+ import scala.concurrent.ExecutionContext;
++import scala.concurrent.duration.Duration;
++
++import java.util.concurrent.TimeUnit;
+ 
+ @Slf4j
+ public class AkkaActivator {
+@@ -23,7 +27,8 @@
+ 
+     public <T> void startTypedActor(Class<T> typedClass, String name, Creator<T> creator) {
+         log.info("Start AKKA typed actor: {}", name);
+-        TypedActor.get(system).typedActorOf(new TypedProps<T>(typedClass, creator), name);
++        TypedActor.get(system).typedActorOf(
++                new TypedProps<T>(typedClass, creator).withTimeout(new Timeout(Duration.create(20, TimeUnit.SECONDS))), name);
+     }
+ 
+     public <T> ActorRef startActor(Class<T> actorClass, String name) {

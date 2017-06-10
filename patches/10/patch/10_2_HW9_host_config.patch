@@ -1,0 +1,255 @@
+Index: common/src/main/resources/defaults.conf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- common/src/main/resources/defaults.conf	(revision )
++++ common/src/main/resources/defaults.conf	(revision )
+@@ -0,0 +1,4 @@
++client.debugLevel = INFO
++server.debugLevel = INFO
++user = null
++password = null
+\ No newline at end of file
+Index: services/common-ws/src/main/java/ru/javaops/web/handler/SoapServerSecurityHandler.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/common-ws/src/main/java/ru/javaops/web/handler/SoapServerSecurityHandler.java	(date 1493987413000)
++++ services/common-ws/src/main/java/ru/javaops/web/handler/SoapServerSecurityHandler.java	(revision )
+@@ -25,7 +25,7 @@
+ 
+     @Override
+     public boolean handleMessage(MessageHandlerContext ctx) {
+-        if (!isOutbound(ctx)) {
++        if (!isOutbound(ctx) && authHeader != null) {
+             Map<String, List<String>> headers = (Map<String, List<String>>) ctx.get(MessageContext.HTTP_REQUEST_HEADERS);
+             int code = AuthUtil.checkBasicAuth(headers, authHeader);
+             if (code != 0) {
+Index: common/src/main/resources/hosts.conf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- common/src/main/resources/hosts.conf	(date 1493987413000)
++++ common/src/main/resources/hosts.conf	(revision )
+@@ -1,10 +1,6 @@
+ hosts {
+   mail {
+     endpoint = "http://localhost:8080"
+-    debug.client = DEBUG
+-    debug.server = INFO
+-    user = "user"
+-    password = "password"
+   }
+ }
+ include file("/apps/masterjava/config/hosts.conf")
+Index: services/common-ws/src/main/java/ru/javaops/web/handler/SoapLoggingHandlers.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/common-ws/src/main/java/ru/javaops/web/handler/SoapLoggingHandlers.java	(date 1493987413000)
++++ services/common-ws/src/main/java/ru/javaops/web/handler/SoapLoggingHandlers.java	(revision )
+@@ -131,8 +131,8 @@
+ 
+     public static class ServerHandler extends SoapLoggingHandlers {
+ 
+-        public ServerHandler() {
+-            super(Level.INFO);
++        public ServerHandler(Level loggingLevel) {
++            super(loggingLevel);
+         }
+ 
+         @Override
+Index: services/common-ws/src/main/java/ru/javaops/web/WsClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/common-ws/src/main/java/ru/javaops/web/WsClient.java	(date 1493987413000)
++++ services/common-ws/src/main/java/ru/javaops/web/WsClient.java	(revision )
+@@ -1,8 +1,10 @@
+ package ru.javaops.web;
+ 
+ import com.typesafe.config.Config;
++import org.slf4j.event.Level;
+ import ru.javaops.masterjava.ExceptionType;
+ import ru.javaops.masterjava.config.Configs;
++import ru.javaops.web.handler.SoapLoggingHandlers;
+ 
+ import javax.xml.namespace.QName;
+ import javax.xml.ws.Binding;
+@@ -19,7 +21,40 @@
+ 
+     private final Class<T> serviceClass;
+     private final Service service;
+-    private String endpointAddress;
++    private HostConfig hostConfig;
++
++    public static class HostConfig {
++        public final String endpoint;
++        public final Level serverDebugLevel;
++        public final String user;
++        public final String password;
++        public final String authHeader;
++        public final SoapLoggingHandlers.ClientHandler clientLoggingHandler;
++
++        public HostConfig(Config config, String endpointAddress) {
++            endpoint = config.getString("endpoint") + endpointAddress;
++            serverDebugLevel = config.getEnum(Level.class, "server.debugLevel");
++
++//          https://github.com/typesafehub/config/issues/282
++            if (!config.getIsNull("user") && !config.getIsNull("password")) {
++                user = config.getString("user");
++                password = config.getString("password");
++                authHeader = AuthUtil.encodeBasicAuthHeader(user, password);
++            } else {
++                user = password = authHeader = null;
++            }
++            clientLoggingHandler = config.getIsNull("client.debugLevel") ? null :
++                    new SoapLoggingHandlers.ClientHandler(config.getEnum(Level.class, "client.debugLevel"));
++        }
++
++        public boolean hasAuthorization() {
++            return authHeader != null;
++        }
++
++        public boolean hasHandler() {
++            return clientLoggingHandler != null;
++        }
++    }
+ 
+     static {
+         HOSTS = Configs.getConfig("hosts.conf", "hosts");
+@@ -31,7 +66,12 @@
+     }
+ 
+     public void init(String host, String endpointAddress) {
+-        this.endpointAddress = HOSTS.getConfig(host).getString("endpoint") + endpointAddress;
++        this.hostConfig = new HostConfig(
++                HOSTS.getConfig(host).withFallback(Configs.getConfig("defaults.conf")), endpointAddress);
++    }
++
++    public HostConfig getHostConfig() {
++        return hostConfig;
+     }
+ 
+     //  Post is not thread-safe (http://stackoverflow.com/a/10601916/548473)
+@@ -39,7 +79,13 @@
+         T port = service.getPort(serviceClass, features);
+         BindingProvider bp = (BindingProvider) port;
+         Map<String, Object> requestContext = bp.getRequestContext();
+-        requestContext.put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, endpointAddress);
++        requestContext.put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, hostConfig.endpoint);
++        if (hostConfig.hasAuthorization()) {
++            setAuth(port, hostConfig.user, hostConfig.password);
++        }
++        if (hostConfig.hasHandler()) {
++            setHandler(port, hostConfig.clientLoggingHandler);
++        }
+         return port;
+     }
+ 
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailHandlers.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailHandlers.java	(date 1493987413000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailHandlers.java	(revision )
+@@ -1,11 +1,18 @@
+ package ru.javaops.masterjava.service.mail;
+ 
++import ru.javaops.web.handler.SoapLoggingHandlers;
+ import ru.javaops.web.handler.SoapServerSecurityHandler;
+ 
+ public class MailHandlers {
+     public static class SecurityHandler extends SoapServerSecurityHandler {
+         public SecurityHandler() {
+-            super(MailWSClient.USER, MailWSClient.PASSWORD);
++            super(MailWSClient.getHostConfig().authHeader);
++        }
++    }
++
++    public static class LoggingHandler extends SoapLoggingHandlers.ServerHandler {
++        public LoggingHandler() {
++            super(MailWSClient.getHostConfig().serverDebugLevel);
+         }
+     }
+ }
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(date 1493987413000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(revision )
+@@ -5,10 +5,8 @@
+ import com.google.common.collect.Iterables;
+ import com.google.common.io.Resources;
+ import lombok.extern.slf4j.Slf4j;
+-import org.slf4j.event.Level;
+ import ru.javaops.web.WebStateException;
+ import ru.javaops.web.WsClient;
+-import ru.javaops.web.handler.SoapLoggingHandlers;
+ 
+ import javax.xml.namespace.QName;
+ import javax.xml.ws.soap.MTOMFeature;
+@@ -18,9 +16,6 @@
+ @Slf4j
+ public class MailWSClient {
+     private static final WsClient<MailService> WS_CLIENT;
+-    public static final String USER = "user";
+-    public static final String PASSWORD = "password";
+-    private static final SoapLoggingHandlers.ClientHandler LOGGING_HANDLER = new SoapLoggingHandlers.ClientHandler(Level.DEBUG);
+ 
+     static {
+         WS_CLIENT = new WsClient<MailService>(Resources.getResource("wsdl/mailService.wsdl"),
+@@ -58,14 +53,15 @@
+     }
+ 
+     private static MailService getPort() {
+-        MailService port = WS_CLIENT.getPort(new MTOMFeature(1024));
+-        WsClient.setAuth(port, USER, PASSWORD);
+-        WsClient.setHandler(port, LOGGING_HANDLER);
+-        return port;
++        return WS_CLIENT.getPort(new MTOMFeature(1024));
+     }
+ 
+     public static Set<Addressee> split(String addressees) {
+         Iterable<String> split = Splitter.on(',').trimResults().omitEmptyStrings().split(addressees);
+         return ImmutableSet.copyOf(Iterables.transform(split, Addressee::new));
+     }
++
++    public static WsClient.HostConfig getHostConfig() {
++        return WS_CLIENT.getHostConfig();
++    }
+ }
+Index: services/mail-service/src/main/resources/mailWsHandlers.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/resources/mailWsHandlers.xml	(date 1493987413000)
++++ services/mail-service/src/main/resources/mailWsHandlers.xml	(revision )
+@@ -1,15 +1,15 @@
+ <handler-chains xmlns="http://java.sun.com/xml/ns/javaee">
+ <handler-chain>
+     <handler>
+-        <handler-name>SoapLoggingHandler</handler-name>
+-        <handler-class>ru.javaops.web.handler.SoapLoggingHandlers$ServerHandler</handler-class>
++        <handler-name>MailLoggingHandler</handler-name>
++        <handler-class>ru.javaops.masterjava.service.mail.MailHandlers$LoggingHandler</handler-class>
+     </handler>
+     <handler>
+         <handler-name>SoapStatisticHandler</handler-name>
+         <handler-class>ru.javaops.web.handler.SoapStatisticHandler</handler-class>
+     </handler>
+     <handler>
+-        <handler-name>SoapStatisticHandler</handler-name>
++        <handler-name>MailSecurityHandler</handler-name>
+         <handler-class>ru.javaops.masterjava.service.mail.MailHandlers$SecurityHandler</handler-class>
+     </handler>
+ </handler-chain>

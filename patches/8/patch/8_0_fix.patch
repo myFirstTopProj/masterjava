@@ -1,0 +1,118 @@
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/GroupResult.java
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/GroupResult.java	(revision 81d5845b6318233faf1de8ae95f3d325ca2b13ff)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/GroupResult.java	(revision 81d5845b6318233faf1de8ae95f3d325ca2b13ff)
+@@ -1,21 +0,0 @@
+-package ru.javaops.masterjava.service.mail;
+-
+-import lombok.AllArgsConstructor;
+-import lombok.NoArgsConstructor;
+-
+-import java.util.List;
+-
+-@AllArgsConstructor
+-@NoArgsConstructor
+-public class GroupResult {
+-    private int success; // number of successfully sent email
+-    private List<MailResult> failed; // failed emails with causes
+-    private String failedCause;  // global fail cause
+-
+-    @Override
+-    public String toString() {
+-        return "Success: " + success + '\n' +
+-                "Failed: " + failed.toString() + '\n' +
+-                (failedCause == null ? "" : "Failed cause" + failedCause);
+-    }
+-}
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailResult.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailResult.java	(revision 81d5845b6318233faf1de8ae95f3d325ca2b13ff)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailResult.java	(revision )
+@@ -1,14 +1,18 @@
+ package ru.javaops.masterjava.service.mail;
+ 
+ import lombok.AllArgsConstructor;
++import lombok.Data;
+ import lombok.NoArgsConstructor;
++import lombok.NonNull;
+ 
++@Data
+ @AllArgsConstructor
+ @NoArgsConstructor
+ public class MailResult {
+     public static final String OK = "OK";
+ 
+-    private String email;
++    private @NonNull
++    String email;
+     private String result;
+ 
+     public boolean isOk() {
+@@ -17,6 +21,6 @@
+ 
+     @Override
+     public String toString() {
+-        return '(' + email + ',' + result + ')';
++        return '\'' + email + "' result '" + result + '\'';
+     }
+ }
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailResult.java
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailResult.java	(revision 81d5845b6318233faf1de8ae95f3d325ca2b13ff)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailResult.java	(revision 81d5845b6318233faf1de8ae95f3d325ca2b13ff)
+@@ -1,20 +0,0 @@
+-package ru.javaops.masterjava.service.mail;
+-
+-import lombok.AllArgsConstructor;
+-
+-@AllArgsConstructor
+-public class MailResult {
+-    public static final String OK = "OK";
+-
+-    private final String email;
+-    private final String result;
+-
+-    public boolean isOk() {
+-        return OK.equals(result);
+-    }
+-
+-    @Override
+-    public String toString() {
+-        return '(' + email + ',' + result + ')';
+-    }
+-}
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/GroupResult.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/GroupResult.java	(revision 81d5845b6318233faf1de8ae95f3d325ca2b13ff)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/GroupResult.java	(revision )
+@@ -1,10 +1,12 @@
+ package ru.javaops.masterjava.service.mail;
+ 
+ import lombok.AllArgsConstructor;
++import lombok.Data;
+ import lombok.NoArgsConstructor;
+ 
+ import java.util.List;
+ 
++@Data
+ @AllArgsConstructor
+ @NoArgsConstructor
+ public class GroupResult {
+@@ -15,7 +17,7 @@
+     @Override
+     public String toString() {
+         return "Success: " + success + '\n' +
+-                "Failed: " + failed.toString() + '\n' +
+-                (failedCause == null ? "" : "Failed cause" + failedCause);
++                (failed == null ? "" : "Failed: " + failed.toString() + '\n') +
++                (failedCause == null ? "" : "Failed cause: " + failedCause);
+     }
+-}
++}
+\ No newline at end of file

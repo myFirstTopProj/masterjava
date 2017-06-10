@@ -1,0 +1,719 @@
+Index: services/common-ws/src/main/java/ru/javaops/web/FaultInfo.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/common-ws/src/main/java/ru/javaops/web/FaultInfo.java	(revision )
++++ services/common-ws/src/main/java/ru/javaops/web/FaultInfo.java	(revision )
+@@ -0,0 +1,19 @@
++package ru.javaops.web;
++
++import lombok.Data;
++import lombok.NoArgsConstructor;
++import lombok.NonNull;
++import lombok.RequiredArgsConstructor;
++import ru.javaops.masterjava.ExceptionType;
++
++@Data
++@RequiredArgsConstructor
++@NoArgsConstructor
++public class FaultInfo {
++    private @NonNull ExceptionType type;
++
++    @Override
++    public String toString() {
++        return type.toString();
++    }
++}
+Index: common/src/main/java/ru/javaops/masterjava/ExceptionType.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- common/src/main/java/ru/javaops/masterjava/ExceptionType.java	(revision )
++++ common/src/main/java/ru/javaops/masterjava/ExceptionType.java	(revision )
+@@ -0,0 +1,34 @@
++package ru.javaops.masterjava;
++
++public enum ExceptionType {
++    SYSTEM("Системная ошибка"),
++    DATA_BASE("Ошибка базы данных"),
++    STATE("Неверное состояние приложения"),
++    AUTHORIZATION("Ошибка авторизации"),
++    CONFIGURATION("Ошибка конфигурирования"),
++    ILLEGAL_ARGUMENT("Неверный аргумент"),
++    BPM("Ошибка бизнес-процесса"),
++    FILE("Ошибка при работе с файловой системой"),
++    REPORTS("Ошибка в отчете"),
++    EMAIL("Ошибка при отправке почты"),
++    TEMPLATE("Ошибка в шаблонах"),
++    ONE_C("Ошибка в системе 1C"),
++    ATTACH("Ошибка вложенного файла"),
++    LDAP("Ошибка соединения с LDAP"),
++    NETWORK("Сетевая Ошибка");
++
++    final private String descr;
++
++    ExceptionType(String title) {
++        this.descr = title;
++    }
++
++    public String getDescr() {
++        return descr;
++    }
++
++    @Override
++    public String toString() {
++        return name() + " (" + descr + ')';
++    }
++}
+Index: config_templates/wsdl/common.xsd
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- config_templates/wsdl/common.xsd	(revision )
++++ config_templates/wsdl/common.xsd	(revision )
+@@ -0,0 +1,32 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
++           targetNamespace="http://common.javaops.ru/">
++
++    <xs:element name="webStateException" nillable="true" type="faultInfo"/>
++
++    <xs:complexType name="faultInfo">
++        <xs:sequence>
++            <xs:element name="type" type="exceptionType" minOccurs="0" maxOccurs="1"/>
++        </xs:sequence>
++    </xs:complexType>
++
++    <xs:simpleType name="exceptionType">
++        <xs:restriction base="xs:string">
++            <xs:enumeration value="SYSTEM"/>
++            <xs:enumeration value="DATA_BASE"/>
++            <xs:enumeration value="STATE"/>
++            <xs:enumeration value="AUTHORIZATION"/>
++            <xs:enumeration value="CONFIGURATION"/>
++            <xs:enumeration value="ILLEGAL_ARGUMENT"/>
++            <xs:enumeration value="BPM"/>
++            <xs:enumeration value="FILE"/>
++            <xs:enumeration value="REPORTS"/>
++            <xs:enumeration value="EMAIL"/>
++            <xs:enumeration value="TEMPLATE"/>
++            <xs:enumeration value="ONE_C"/>
++            <xs:enumeration value="ATTACH"/>
++            <xs:enumeration value="LDAP"/>
++            <xs:enumeration value="NETWORK"/>
++        </xs:restriction>
++    </xs:simpleType>
++</xs:schema>
+\ No newline at end of file
+Index: services/common-ws/src/main/java/ru/javaops/web/WebStateException.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/common-ws/src/main/java/ru/javaops/web/WebStateException.java	(revision )
++++ services/common-ws/src/main/java/ru/javaops/web/WebStateException.java	(revision )
+@@ -0,0 +1,35 @@
++package ru.javaops.web;
++
++
++import com.google.common.base.Throwables;
++import ru.javaops.masterjava.ExceptionType;
++
++import javax.xml.ws.WebFault;
++
++@WebFault(name = "webStateException", targetNamespace = "http://common.javaops.ru/")
++public class WebStateException extends Exception {
++    private FaultInfo faultInfo;
++
++    public WebStateException(String message, FaultInfo faultInfo) {
++        super(message);
++        this.faultInfo = faultInfo;
++    }
++
++    public WebStateException(Exception e) {
++        this(ExceptionType.SYSTEM, e);
++    }
++
++    public WebStateException(ExceptionType type, Throwable cause) {
++        super(Throwables.getRootCause(cause).toString(), cause);
++        this.faultInfo = new FaultInfo(type);
++    }
++
++    public FaultInfo getFaultInfo() {
++        return faultInfo;
++    }
++
++    @Override
++    public String toString() {
++        return faultInfo.toString() + '\n' + super.toString();
++    }
++}
+Index: services/common-ws/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/common-ws/pom.xml	(revision )
++++ services/common-ws/pom.xml	(revision )
+@@ -0,0 +1,77 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project xmlns="http://maven.apache.org/POM/4.0.0"
++         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++
++    <parent>
++        <groupId>ru.javaops</groupId>
++        <artifactId>parent</artifactId>
++        <relativePath>../../parent/pom.xml</relativePath>
++        <version>1.0-SNAPSHOT</version>
++    </parent>
++
++    <artifactId>common-ws</artifactId>
++    <version>1.0-SNAPSHOT</version>
++    <name>Common Web Services</name>
++
++    <dependencies>
++        <dependency>
++            <groupId>${project.groupId}</groupId>
++            <artifactId>common</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>com.sun.xml.ws</groupId>
++            <artifactId>jaxws-rt</artifactId>
++            <version>2.2.10</version>
++            <exclusions>
++                <exclusion>
++                    <groupId>org.jvnet.mimepull</groupId>
++                    <artifactId>mimepull</artifactId>
++                </exclusion>
++                <exclusion>
++                    <groupId>javax.xml.bind</groupId>
++                    <artifactId>jaxb-api</artifactId>
++                </exclusion>
++                <exclusion>
++                    <groupId>javax.annotation</groupId>
++                    <artifactId>javax.annotation-api</artifactId>
++                </exclusion>
++                <exclusion>
++                    <groupId>org.jvnet.staxex</groupId>
++                    <artifactId>stax-ex</artifactId>
++                </exclusion>
++                <exclusion>
++                    <groupId>javax.xml.soap</groupId>
++                    <artifactId>javax.xml.soap-api</artifactId>
++                </exclusion>
++            </exclusions>
++        </dependency>
++
++        <dependency>
++            <groupId>javax.activation</groupId>
++            <artifactId>activation</artifactId>
++            <version>1.1.1</version>
++        </dependency>
++        <dependency>
++            <groupId>org.jvnet.staxex</groupId>
++            <artifactId>stax-ex</artifactId>
++            <version>1.7.7</version>
++            <exclusions>
++                <exclusion>
++                    <groupId>javax.activation</groupId>
++                    <artifactId>activation</artifactId>
++                </exclusion>
++            </exclusions>
++        </dependency>
++
++        <dependency>
++            <groupId>javax.servlet</groupId>
++            <artifactId>javax.servlet-api</artifactId>
++            <version>3.1.0</version>
++            <scope>provided</scope>
++        </dependency>
++    </dependencies>
++</project>
+\ No newline at end of file
+Index: services/mail-api/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/pom.xml	(date 1492826050000)
++++ services/mail-api/pom.xml	(revision )
+@@ -21,6 +21,7 @@
+                 <directory>${masterjava.config}</directory>
+                 <includes>
+                     <include>wsdl/mailService.wsdl</include>
++                    <include>wsdl/common.xsd</include>
+                 </includes>
+             </resource>
+         </resources>
+@@ -29,7 +30,7 @@
+     <dependencies>
+         <dependency>
+             <groupId>${project.groupId}</groupId>
+-            <artifactId>common</artifactId>
++            <artifactId>common-ws</artifactId>
+             <version>${project.version}</version>
+         </dependency>
+     </dependencies>
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailSender.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailSender.java	(date 1492826050000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailSender.java	(revision )
+@@ -5,9 +5,11 @@
+ import lombok.extern.slf4j.Slf4j;
+ import lombok.val;
+ import org.apache.commons.mail.EmailException;
++import ru.javaops.masterjava.ExceptionType;
+ import ru.javaops.masterjava.persist.DBIProvider;
+ import ru.javaops.masterjava.service.mail.persist.MailCase;
+ import ru.javaops.masterjava.service.mail.persist.MailCaseDao;
++import ru.javaops.web.WebStateException;
+ 
+ import java.util.Set;
+ 
+@@ -19,12 +21,12 @@
+ public class MailSender {
+     private static final MailCaseDao MAIL_CASE_DAO = DBIProvider.getDao(MailCaseDao.class);
+ 
+-    static MailResult sendTo(Addressee to, String subject, String body) {
++    static MailResult sendTo(Addressee to, String subject, String body) throws WebStateException {
+         val state = sendToGroup(ImmutableSet.of(to), ImmutableSet.of(), subject, body);
+         return new MailResult(to.getEmail(), state);
+     }
+ 
+-    static String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body) {
++    static String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body) throws WebStateException {
+         log.info("Send mail to \'" + to + "\' cc \'" + cc + "\' subject \'" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
+         String state = MailResult.OK;
+         try {
+@@ -45,7 +47,12 @@
+             log.error(e.getMessage(), e);
+             state = e.getMessage();
+         }
+-        MAIL_CASE_DAO.insert(MailCase.of(to, cc, subject, body, state));
++        try {
++            MAIL_CASE_DAO.insert(MailCase.of(to, cc, subject, body, state));
++        } catch (Exception e) {
++            log.error("Mail history saving exception", e);
++            throw new WebStateException(ExceptionType.DATA_BASE, e);
++        }
+         log.info("Sent with state: " + state);
+         return state;
+     }
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java	(date 1492826050000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java	(revision )
+@@ -1,5 +1,7 @@
+ package ru.javaops.masterjava.service.mail;
+ 
++import ru.javaops.web.WebStateException;
++
+ import javax.jws.WebService;
+ import java.util.Set;
+ 
+@@ -9,12 +11,12 @@
+ public class MailServiceImpl implements MailService {
+ 
+     @Override
+-    public String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body) {
++    public String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body) throws WebStateException {
+         return MailSender.sendToGroup(to, cc, subject, body);
+     }
+ 
+     @Override
+-    public GroupResult sendBulk(Set<Addressee> to, String subject, String body) {
++    public GroupResult sendBulk(Set<Addressee> to, String subject, String body) throws WebStateException {
+         return MailServiceExecutor.sendBulk(to, subject, body);
+     }
+ }
+\ No newline at end of file
+Index: services/mail-service/src/test/java/ru/javaops/masterjava/service/mail/MailServiceClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/test/java/ru/javaops/masterjava/service/mail/MailServiceClient.java	(date 1492826050000)
++++ services/mail-service/src/test/java/ru/javaops/masterjava/service/mail/MailServiceClient.java	(revision )
+@@ -1,6 +1,7 @@
+ package ru.javaops.masterjava.service.mail;
+ 
+ import com.google.common.collect.ImmutableSet;
++import ru.javaops.web.WebStateException;
+ 
+ import javax.xml.namespace.QName;
+ import javax.xml.ws.Service;
+@@ -21,10 +22,14 @@
+                 new Addressee("Мастер Java <masterjava@javaops.ru>"),
+                 new Addressee("Bad Email <bad_email.ru>"));
+ 
+-        String status = mailService.sendToGroup(addressees, ImmutableSet.of(), "Bulk email subject", "Bulk email body");
+-        System.out.println(status);
++        try {
++            String status = mailService.sendToGroup(addressees, ImmutableSet.of(), "Bulk email subject", "Bulk email body");
++            System.out.println(status);
+ 
+-        GroupResult groupResult = mailService.sendBulk(addressees, "Individual mail subject", "Individual mail body");
+-        System.out.println(groupResult);
++            GroupResult groupResult = mailService.sendBulk(addressees, "Individual mail subject", "Individual mail body");
++            System.out.println(groupResult);
++        } catch (WebStateException e) {
++            System.out.println(e);
++        }
+     }
+ }
+Index: config_templates/wsdl/mailService.wsdl
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- config_templates/wsdl/mailService.wsdl	(date 1492826050000)
++++ config_templates/wsdl/mailService.wsdl	(revision )
+@@ -3,11 +3,14 @@
+              xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+              xmlns:tns="http://mail.javaops.ru/"
+              xmlns:xs="http://www.w3.org/2001/XMLSchema"
++             xmlns:common="http://common.javaops.ru/"
+              xmlns="http://schemas.xmlsoap.org/wsdl/"
+              targetNamespace="http://mail.javaops.ru/"
+              name="MailServiceImplService">
+     <types>
+         <xs:schema targetNamespace="http://mail.javaops.ru/">
++            <xs:import namespace="http://common.javaops.ru/" schemaLocation="common.xsd"/>
++
+             <xs:element name="sendToGroup" type="tns:sendToGroup"/>
+             <xs:element name="sendToGroupResponse" type="tns:sendToGroupResponse"/>
+             <xs:element name="sendBulk" type="tns:sendBulk"/>
+@@ -80,17 +83,25 @@
+     <message name="sendBulkResponse">
+         <part name="parameters" element="tns:sendBulkResponse"/>
+     </message>
++    <message name="WebStateException">
++        <part name="fault" element="common:webStateException"/>
++    </message>
++
+     <portType name="MailService">
+         <operation name="sendToGroup">
+             <input wsam:Action="http://mail.javaops.ru/MailService/sendToGroupRequest" message="tns:sendToGroup"/>
+             <output wsam:Action="http://mail.javaops.ru/MailService/sendToGroupResponse"
+                     message="tns:sendToGroupResponse"/>
++            <fault wsam:Action="http://mail.javaops.ru/MailService/sendBulkMail/Fault/WebStateException"
++                   message="tns:WebStateException" name="WebStateException" />
+         </operation>
+         <operation name="sendBulk">
+             <input wsam:Action="http://mail.javaops.ru/MailService/sendBulkRequest"
+                    message="tns:sendBulk"/>
+             <output wsam:Action="http://mail.javaops.ru/MailService/sendBulkResponse"
+                     message="tns:sendBulkResponse"/>
++            <fault wsam:Action="http://mail.javaops.ru/MailService/sendBulkMail/Fault/WebStateException"
++                   message="tns:WebStateException" name="WebStateException" />
+         </operation>
+     </portType>
+     <binding name="MailServiceImplPortBinding" type="tns:MailService">
+@@ -103,6 +114,9 @@
+             <output>
+                 <soap:body use="literal"/>
+             </output>
++            <fault name="WebStateException">
++                <soap:fault name="WebStateException" use="literal"/>
++            </fault>
+         </operation>
+         <operation name="sendBulk">
+             <soap:operation soapAction=""/>
+@@ -112,6 +126,9 @@
+             <output>
+                 <soap:body use="literal"/>
+             </output>
++            <fault name="WebStateException">
++                <soap:fault name="WebStateException" use="literal"/>
++            </fault>
+         </operation>
+     </binding>
+     <service name="MailServiceImplService">
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailService.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailService.java	(date 1492826050000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailService.java	(revision )
+@@ -1,5 +1,7 @@
+ package ru.javaops.masterjava.service.mail;
+ 
++import ru.javaops.web.WebStateException;
++
+ import javax.jws.WebMethod;
+ import javax.jws.WebParam;
+ import javax.jws.WebService;
+@@ -17,12 +19,12 @@
+             @WebParam(name = "to") Set<Addressee> to,
+             @WebParam(name = "cc") Set<Addressee> cc,
+             @WebParam(name = "subject") String subject,
+-            @WebParam(name = "body") String body);
++            @WebParam(name = "body") String body) throws WebStateException;
+ 
+     @WebMethod
+     GroupResult sendBulk(
+             @WebParam(name = "to") Set<Addressee> to,
+             @WebParam(name = "subject") String subject,
+-            @WebParam(name = "body") String body);
++            @WebParam(name = "body") String body) throws WebStateException;
+ 
+ }
+\ No newline at end of file
+Index: services/mail-service/src/test/java/ru/javaops/masterjava/service/mail/MailServicePublisher.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/test/java/ru/javaops/masterjava/service/mail/MailServicePublisher.java	(date 1492826050000)
++++ services/mail-service/src/test/java/ru/javaops/masterjava/service/mail/MailServicePublisher.java	(revision )
+@@ -16,7 +16,8 @@
+ 
+         Endpoint endpoint = Endpoint.create(new MailServiceImpl());
+         List<Source> metadata = ImmutableList.of(
+-                new StreamSource(Configs.getConfigFile("wsdl/mailService.wsdl")));
++                new StreamSource(Configs.getConfigFile("wsdl/mailService.wsdl")),
++                new StreamSource(Configs.getConfigFile("wsdl/common.xsd")));
+ 
+         endpoint.setMetadata(metadata);
+         endpoint.publish("http://localhost:8080/mail/mailService");
+Index: services/mail-service/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/pom.xml	(date 1492826050000)
++++ services/mail-service/pom.xml	(revision )
+@@ -40,6 +40,7 @@
+                             <directory>${masterjava.config}</directory>
+                             <includes>
+                                 <include>wsdl/mailService.wsdl</include>
++                                <include>wsdl/common.xsd</include>
+                             </includes>
+                             <targetPath>WEB-INF</targetPath>
+                         </resource>
+@@ -66,11 +67,7 @@
+                 </exclusion>
+             </exclusions>
+         </dependency>
+-        <dependency>
+-            <groupId>javax.activation</groupId>
+-            <artifactId>activation</artifactId>
+-            <version>1.1.1</version>
+-        </dependency>
++
+         <dependency>
+             <groupId>${project.groupId}</groupId>
+             <artifactId>persist</artifactId>
+@@ -82,44 +79,6 @@
+             <version>${project.version}</version>
+             <type>test-jar</type>
+             <scope>test</scope>
+-        </dependency>
+-        <dependency>
+-            <groupId>com.sun.xml.ws</groupId>
+-            <artifactId>jaxws-rt</artifactId>
+-            <version>2.2.10</version>
+-            <exclusions>
+-                <exclusion>
+-                    <groupId>org.jvnet.mimepull</groupId>
+-                    <artifactId>mimepull</artifactId>
+-                </exclusion>
+-                <exclusion>
+-                    <groupId>javax.xml.bind</groupId>
+-                    <artifactId>jaxb-api</artifactId>
+-                </exclusion>
+-                <exclusion>
+-                    <groupId>javax.annotation</groupId>
+-                    <artifactId>javax.annotation-api</artifactId>
+-                </exclusion>
+-                <exclusion>
+-                    <groupId>org.jvnet.staxex</groupId>
+-                    <artifactId>stax-ex</artifactId>
+-                </exclusion>
+-                <exclusion>
+-                    <groupId>javax.xml.soap</groupId>
+-                    <artifactId>javax.xml.soap-api</artifactId>
+-                </exclusion>
+-            </exclusions>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.jvnet.staxex</groupId>
+-            <artifactId>stax-ex</artifactId>
+-            <version>1.7.8</version>
+-            <exclusions>
+-                <exclusion>
+-                    <groupId>javax.activation</groupId>
+-                    <artifactId>activation</artifactId>
+-                </exclusion>
+-            </exclusions>
+         </dependency>
+     </dependencies>
+ </project>
+\ No newline at end of file
+Index: web/webapp/src/main/java/ru/javaops/masterjava/webapp/SendServlet.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/java/ru/javaops/masterjava/webapp/SendServlet.java	(date 1492826050000)
++++ web/webapp/src/main/java/ru/javaops/masterjava/webapp/SendServlet.java	(revision )
+@@ -1,8 +1,8 @@
+ package ru.javaops.masterjava.webapp;
+ 
+ import lombok.extern.slf4j.Slf4j;
+-import ru.javaops.masterjava.service.mail.GroupResult;
+ import ru.javaops.masterjava.service.mail.MailWSClient;
++import ru.javaops.web.WebStateException;
+ 
+ import javax.servlet.ServletException;
+ import javax.servlet.annotation.WebServlet;
+@@ -21,7 +21,12 @@
+         String users = req.getParameter("users");
+         String subject = req.getParameter("subject");
+         String body = req.getParameter("body");
+-        GroupResult groupResult = MailWSClient.sendBulk(MailWSClient.split(users), subject, body);
+-        resp.getWriter().write(groupResult.toString());
++        String groupResult;
++        try {
++            groupResult = MailWSClient.sendBulk(MailWSClient.split(users), subject, body).toString();
++        } catch (WebStateException e) {
++            groupResult = e.toString();
++        }
++        resp.getWriter().write(groupResult);
+     }
+ }
+Index: common/src/main/java/ru/javaops/masterjava/web/WsClient.java
+===================================================================
+--- common/src/main/java/ru/javaops/masterjava/web/WsClient.java	(date 1492826050000)
++++ services/common-ws/src/main/java/ru/javaops/web/WsClient.java	(revision )
+@@ -1,6 +1,7 @@
+-package ru.javaops.masterjava.web;
++package ru.javaops.web;
+ 
+ import com.typesafe.config.Config;
++import ru.javaops.masterjava.ExceptionType;
+ import ru.javaops.masterjava.config.Configs;
+ 
+ import javax.xml.namespace.QName;
+@@ -37,4 +38,9 @@
+         requestContext.put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, endpointAddress);
+         return port;
+     }
++
++    public static WebStateException getWebStateException(Exception e) {
++        return (e instanceof WebStateException) ?
++                (WebStateException) e : new WebStateException(ExceptionType.NETWORK, e);
++    }
+ }
+Index: services/mail-api/src/test/java/ru/javaops/masterjava/service/mail/MailWSClientMain.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/test/java/ru/javaops/masterjava/service/mail/MailWSClientMain.java	(date 1492826050000)
++++ services/mail-api/src/test/java/ru/javaops/masterjava/service/mail/MailWSClientMain.java	(revision )
+@@ -1,11 +1,20 @@
+ package ru.javaops.masterjava.service.mail;
+ 
+ import com.google.common.collect.ImmutableSet;
++import lombok.extern.slf4j.Slf4j;
+ 
++@Slf4j
+ public class MailWSClientMain {
+     public static void main(String[] args) {
+-        MailWSClient.sendToGroup(
+-                ImmutableSet.of(new Addressee("Григорий Кислин <gkislin@javaops.ru>")),
+-                ImmutableSet.of(new Addressee("Мастер Java <masterjava@javaops.ru>")), "Subject", "Body");
++        ImmutableSet<Addressee> addressees = ImmutableSet.of(
++                new Addressee("gkislin@javaops.ru"),
++                new Addressee("Мастер Java <masterjava@javaops.ru>"),
++                new Addressee("Bad Email <bad_email.ru>"));
++        try {
++            String state = MailWSClient.sendToGroup(addressees, ImmutableSet.of(), "Subject", "Body");
++            System.out.println(state);
++        } catch (Throwable e) {
++            log.error(e.toString(), e);
++        }
+     }
+ }
+\ No newline at end of file
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(date 1492826050000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(revision )
+@@ -5,7 +5,8 @@
+ import com.google.common.collect.Iterables;
+ import com.google.common.io.Resources;
+ import lombok.extern.slf4j.Slf4j;
+-import ru.javaops.masterjava.web.WsClient;
++import ru.javaops.web.WebStateException;
++import ru.javaops.web.WsClient;
+ 
+ import javax.xml.namespace.QName;
+ import java.util.Set;
+@@ -23,7 +24,7 @@
+     }
+ 
+ 
+-    public static String sendToGroup(final Set<Addressee> to, final Set<Addressee> cc, final String subject, final String body) {
++    public static String sendToGroup(final Set<Addressee> to, final Set<Addressee> cc, final String subject, final String body) throws WebStateException {
+         log.info("Send mail to '" + to + "' cc '" + cc + "' subject '" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
+         String status;
+         try {
+@@ -31,19 +32,19 @@
+             log.info("Sent with status: " + status);
+         } catch (Exception e) {
+             log.error("sendToGroup failed", e);
+-            status = e.toString();
++            throw WsClient.getWebStateException(e);
+         }
+         return status;
+     }
+ 
+-    public static GroupResult sendBulk(final Set<Addressee> to, final String subject, final String body) {
++    public static GroupResult sendBulk(final Set<Addressee> to, final String subject, final String body) throws WebStateException {
+         log.info("Send mail to '" + to + "' subject '" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
+         GroupResult result;
+         try {
+             result = WS_CLIENT.getPort().sendBulk(to, subject, body);
+-        } catch (Exception e) {
+-            log.error("sendIndividualMails failed", e);
+-            result = new GroupResult(e);
++        } catch (WebStateException e) {
++            log.error("sendBulk failed", e);
++            throw WsClient.getWebStateException(e);
+         }
+         log.info("Sent with result: " + result);
+         return result;
+Index: services/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/pom.xml	(date 1492826050000)
++++ services/pom.xml	(revision )
+@@ -9,6 +9,7 @@
+ 
+     <name>MasterJava Services</name>
+     <modules>
++        <module>common-ws</module>
+         <module>mail-api</module>
+         <module>mail-service</module>
+     </modules>

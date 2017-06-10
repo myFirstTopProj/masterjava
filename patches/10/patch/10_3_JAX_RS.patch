@@ -1,0 +1,128 @@
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRestConfig.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRestConfig.java	(revision )
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRestConfig.java	(revision )
+@@ -0,0 +1,12 @@
++package ru.javaops.masterjava.service.mail.rest;
++
++import org.glassfish.jersey.server.ResourceConfig;
++
++import javax.ws.rs.ApplicationPath;
++
++@ApplicationPath("rest")
++public class MailRestConfig extends ResourceConfig {
++    public MailRestConfig() {
++        packages("ru.javaops.masterjava.service.mail.rest");
++    }
++}
+\ No newline at end of file
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRS.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRS.java	(revision )
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/rest/MailRS.java	(revision )
+@@ -0,0 +1,32 @@
++package ru.javaops.masterjava.service.mail.rest;
++
++
++import org.hibernate.validator.constraints.NotBlank;
++import ru.javaops.masterjava.service.mail.GroupResult;
++import ru.javaops.masterjava.service.mail.MailServiceExecutor;
++import ru.javaops.masterjava.service.mail.MailWSClient;
++import ru.javaops.web.WebStateException;
++
++import javax.ws.rs.*;
++import javax.ws.rs.core.MediaType;
++import java.util.Collections;
++
++@Path("/")
++public class MailRS {
++    @GET
++    @Path("test")
++    @Produces(MediaType.TEXT_PLAIN)
++    public String test() {
++        return "Test";
++    }
++
++    @POST
++    @Path("send")
++    @Produces(MediaType.APPLICATION_JSON)
++    public GroupResult send(@NotBlank @FormParam("users") String users,
++                            @FormParam("subject") String subject,
++                            @NotBlank @FormParam("body") String body) throws WebStateException {
++
++        return MailServiceExecutor.sendBulk(MailWSClient.split(users), subject, body, Collections.emptyList());
++    }
++}
+\ No newline at end of file
+Index: web/webapp/src/main/webapp/WEB-INF/templates/users.html
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/webapp/WEB-INF/templates/users.html	(date 1493993350000)
++++ web/webapp/src/main/webapp/WEB-INF/templates/users.html	(revision )
+@@ -36,6 +36,9 @@
+         </tbody>
+     </table>
+     <hr/>
++    <input type="radio" name="transport" onchange="setFormAttr('SOAP')" checked>SOAP<br>
++    <input type="radio" name="transport" onchange="setFormAttr('REST')">REST<br>
++
+     <form enctype="multipart/form-data" action="send" method=post
+           target="result" onsubmit="window.open('','result','width=800,height=400,menubar=no');">
+ 
+@@ -56,6 +59,17 @@
+     </form>
+ </section>
+ <script type="text/javascript">
++    function setFormAttr(transport) {
++        var form = $("form");
++        if (transport == 'SOAP') {
++            form.attr("action", 'send');
++            form.attr("enctype", 'multipart/form-data');
++        } else if(transport == 'REST'){
++            form.attr("action", '/mail/rest/send');
++            form.attr("enctype", 'application/x-www-form-urlencoded');
++        }
++    }
++
+     function fillUsers() {
+         var users = $("input:checkbox:checked").map(function () {
+             return this.value;
+Index: services/mail-service/pom.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/pom.xml	(date 1493993350000)
++++ services/mail-service/pom.xml	(revision )
+@@ -73,5 +73,22 @@
+             <type>test-jar</type>
+             <scope>test</scope>
+         </dependency>
++
++
++        <dependency>
++            <groupId>org.glassfish.jersey.containers</groupId>
++            <artifactId>jersey-container-servlet</artifactId>
++            <version>2.25.1</version>
++        </dependency>
++        <dependency>
++            <groupId>org.glassfish.jersey.media</groupId>
++            <artifactId>jersey-media-moxy</artifactId>
++            <version>2.25.1</version>
++        </dependency>
++        <dependency>
++            <groupId>org.glassfish.jersey.ext</groupId>
++            <artifactId>jersey-bean-validation</artifactId>
++            <version>2.25.1</version>
++        </dependency>
+     </dependencies>
+ </project>
+\ No newline at end of file

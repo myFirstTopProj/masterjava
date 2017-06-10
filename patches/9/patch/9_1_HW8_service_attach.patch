@@ -1,0 +1,278 @@
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/Attach.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/Attach.java	(revision )
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/Attach.java	(revision )
+@@ -0,0 +1,22 @@
++package ru.javaops.masterjava.service.mail;
++
++import lombok.AllArgsConstructor;
++import lombok.Getter;
++import lombok.NoArgsConstructor;
++
++import javax.activation.DataHandler;
++import javax.xml.bind.annotation.XmlAccessType;
++import javax.xml.bind.annotation.XmlAccessorType;
++import javax.xml.bind.annotation.XmlMimeType;
++
++@Getter
++@AllArgsConstructor
++@NoArgsConstructor
++@XmlAccessorType(XmlAccessType.FIELD)
++public class Attach {
++    // http://stackoverflow.com/questions/12250423/jax-ws-datahandler-getname-is-blank-when-called-from-client-side
++    protected String name;
++
++    @XmlMimeType("application/octet-stream")
++    private DataHandler dataHandler;
++}
+Index: services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java	(date 1493398337000)
++++ services/mail-service/src/main/java/ru/javaops/masterjava/service/mail/MailServiceImpl.java	(revision )
+@@ -3,6 +3,7 @@
+ import ru.javaops.web.WebStateException;
+ 
+ import javax.jws.WebService;
++import java.util.List;
+ import java.util.Set;
+ 
+ @WebService(endpointInterface = "ru.javaops.masterjava.service.mail.MailService", targetNamespace = "http://mail.javaops.ru/"
+@@ -11,12 +12,12 @@
+ public class MailServiceImpl implements MailService {
+ 
+     @Override
+-    public String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body) throws WebStateException {
++    public String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body, List<Attach> attaches) throws WebStateException {
+         return MailSender.sendToGroup(to, cc, subject, body);
+     }
+ 
+     @Override
+-    public GroupResult sendBulk(Set<Addressee> to, String subject, String body) throws WebStateException {
++    public GroupResult sendBulk(Set<Addressee> to, String subject, String body, List<Attach> attaches) throws WebStateException {
+         return MailServiceExecutor.sendBulk(to, subject, body);
+     }
+ }
+\ No newline at end of file
+Index: services/mail-service/src/test/java/ru/javaops/masterjava/service/mail/MailServiceClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-service/src/test/java/ru/javaops/masterjava/service/mail/MailServiceClient.java	(date 1493398337000)
++++ services/mail-service/src/test/java/ru/javaops/masterjava/service/mail/MailServiceClient.java	(revision )
+@@ -1,12 +1,16 @@
+ package ru.javaops.masterjava.service.mail;
+ 
++import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableSet;
+ import ru.javaops.web.WebStateException;
+ 
++import javax.activation.DataHandler;
+ import javax.xml.namespace.QName;
+ import javax.xml.ws.Service;
++import java.io.File;
+ import java.net.MalformedURLException;
+ import java.net.URL;
++import java.util.List;
+ 
+ public class MailServiceClient {
+ 
+@@ -18,15 +22,16 @@
+         MailService mailService = service.getPort(MailService.class);
+ 
+         ImmutableSet<Addressee> addressees = ImmutableSet.of(
+-                new Addressee("gkislin@javaops.ru"),
+-                new Addressee("Мастер Java <masterjava@javaops.ru>"),
+-                new Addressee("Bad Email <bad_email.ru>"));
++                new Addressee("Мастер Java <masterjava@javaops.ru>"));
++
++        List<Attach> attaches = ImmutableList.of(
++                new Attach("version.html", new DataHandler(new File("config_templates/version.html").toURI().toURL())));
+ 
+         try {
+-            String status = mailService.sendToGroup(addressees, ImmutableSet.of(), "Bulk email subject", "Bulk email body");
++            String status = mailService.sendToGroup(addressees, ImmutableSet.of(), "Bulk email subject", "Bulk email body", attaches);
+             System.out.println(status);
+ 
+-            GroupResult groupResult = mailService.sendBulk(addressees, "Individual mail subject", "Individual mail body");
++            GroupResult groupResult = mailService.sendBulk(addressees, "Individual mail subject", "Individual mail body", attaches);
+             System.out.println(groupResult);
+         } catch (WebStateException e) {
+             System.out.println(e);
+Index: config_templates/wsdl/mailService.wsdl
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- config_templates/wsdl/mailService.wsdl	(date 1493398337000)
++++ config_templates/wsdl/mailService.wsdl	(revision )
+@@ -4,6 +4,7 @@
+              xmlns:tns="http://mail.javaops.ru/"
+              xmlns:xs="http://www.w3.org/2001/XMLSchema"
+              xmlns:common="http://common.javaops.ru/"
++             xmlns:xmime="http://www.w3.org/2005/05/xmlmime"
+              xmlns="http://schemas.xmlsoap.org/wsdl/"
+              targetNamespace="http://mail.javaops.ru/"
+              name="MailServiceImplService">
+@@ -22,6 +23,7 @@
+                     <xs:element name="cc" type="tns:addressee" minOccurs="0" maxOccurs="unbounded"/>
+                     <xs:element name="subject" type="xs:string" minOccurs="0"/>
+                     <xs:element name="body" type="xs:string" minOccurs="1"/>
++                    <xs:element name="attaches" type="tns:attach" minOccurs="0" maxOccurs="unbounded"/>
+                 </xs:sequence>
+             </xs:complexType>
+             <xs:complexType name="sendToGroupResponse">
+@@ -35,6 +37,7 @@
+                     <xs:element name="to" type="tns:addressee" minOccurs="0" maxOccurs="unbounded"/>
+                     <xs:element name="subject" type="xs:string" minOccurs="0"/>
+                     <xs:element name="body" type="xs:string" minOccurs="1"/>
++                    <xs:element name="attaches" type="tns:attach" minOccurs="0" maxOccurs="unbounded"/>
+                 </xs:sequence>
+             </xs:complexType>
+             <xs:complexType name="sendBulkResponse">
+@@ -69,6 +72,13 @@
+             <xs:complexType name="sendMailResponse">
+                 <xs:sequence/>
+             </xs:complexType>
++
++            <xs:complexType name="attach">
++                <xs:sequence>
++                    <xs:element name="name" type="xs:string" minOccurs="0"/>
++                    <xs:element name="dataHandler" xmime:expectedContentTypes="application/octet-stream" type="xs:base64Binary" minOccurs="0"/>
++                </xs:sequence>
++            </xs:complexType>
+         </xs:schema>
+     </types>
+     <message name="sendToGroup">
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailService.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailService.java	(date 1493398337000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailService.java	(revision )
+@@ -5,6 +5,7 @@
+ import javax.jws.WebMethod;
+ import javax.jws.WebParam;
+ import javax.jws.WebService;
++import java.util.List;
+ import java.util.Set;
+ 
+ @WebService(targetNamespace = "http://mail.javaops.ru/")
+@@ -19,12 +20,14 @@
+             @WebParam(name = "to") Set<Addressee> to,
+             @WebParam(name = "cc") Set<Addressee> cc,
+             @WebParam(name = "subject") String subject,
+-            @WebParam(name = "body") String body) throws WebStateException;
++            @WebParam(name = "body") String body,
++            @WebParam(name = "attaches") List<Attach> attaches) throws WebStateException;
+ 
+     @WebMethod
+     GroupResult sendBulk(
+             @WebParam(name = "to") Set<Addressee> to,
+             @WebParam(name = "subject") String subject,
+-            @WebParam(name = "body") String body) throws WebStateException;
++            @WebParam(name = "body") String body,
++            @WebParam(name = "attaches") List<Attach> attaches) throws WebStateException;
+ 
+ }
+\ No newline at end of file
+Index: services/mail-api/src/test/java/ru/javaops/masterjava/service/mail/MailWSClientMain.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/test/java/ru/javaops/masterjava/service/mail/MailWSClientMain.java	(date 1493398337000)
++++ services/mail-api/src/test/java/ru/javaops/masterjava/service/mail/MailWSClientMain.java	(revision )
+@@ -1,17 +1,22 @@
+ package ru.javaops.masterjava.service.mail;
+ 
++import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableSet;
+ import lombok.extern.slf4j.Slf4j;
+ 
++import javax.activation.DataHandler;
++import java.io.File;
++
+ @Slf4j
+ public class MailWSClientMain {
+     public static void main(String[] args) {
+         ImmutableSet<Addressee> addressees = ImmutableSet.of(
+-                new Addressee("gkislin@javaops.ru"),
+-                new Addressee("Мастер Java <masterjava@javaops.ru>"),
+-                new Addressee("Bad Email <bad_email.ru>"));
++                new Addressee("Мастер Java <masterjava@javaops.ru>"));
++
+         try {
+-            String state = MailWSClient.sendToGroup(addressees, ImmutableSet.of(), "Subject", "Body");
++            String state = MailWSClient.sendToGroup(addressees, ImmutableSet.of(), "Subject", "Body", ImmutableList.of(
++                    new Attach("version.html", new DataHandler(new File("config_templates/version.html").toURI().toURL()))
++            ));
+             System.out.println(state);
+         } catch (Throwable e) {
+             log.error(e.toString(), e);
+Index: services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(date 1493398337000)
++++ services/mail-api/src/main/java/ru/javaops/masterjava/service/mail/MailWSClient.java	(revision )
+@@ -9,6 +9,7 @@
+ import ru.javaops.web.WsClient;
+ 
+ import javax.xml.namespace.QName;
++import java.util.List;
+ import java.util.Set;
+ 
+ @Slf4j
+@@ -24,11 +25,11 @@
+     }
+ 
+ 
+-    public static String sendToGroup(final Set<Addressee> to, final Set<Addressee> cc, final String subject, final String body) throws WebStateException {
++    public static String sendToGroup(final Set<Addressee> to, final Set<Addressee> cc, final String subject, final String body, List<Attach> attaches) throws WebStateException {
+         log.info("Send mail to '" + to + "' cc '" + cc + "' subject '" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
+         String status;
+         try {
+-            status = WS_CLIENT.getPort().sendToGroup(to, cc, subject, body);
++            status = WS_CLIENT.getPort().sendToGroup(to, cc, subject, body, attaches);
+             log.info("Sent with status: " + status);
+         } catch (Exception e) {
+             log.error("sendToGroup failed", e);
+@@ -37,11 +38,11 @@
+         return status;
+     }
+ 
+-    public static GroupResult sendBulk(final Set<Addressee> to, final String subject, final String body) throws WebStateException {
++    public static GroupResult sendBulk(final Set<Addressee> to, final String subject, final String body, List<Attach> attaches) throws WebStateException {
+         log.info("Send mail to '" + to + "' subject '" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
+         GroupResult result;
+         try {
+-            result = WS_CLIENT.getPort().sendBulk(to, subject, body);
++            result = WS_CLIENT.getPort().sendBulk(to, subject, body, attaches);
+         } catch (WebStateException e) {
+             log.error("sendBulk failed", e);
+             throw WsClient.getWebStateException(e);
+Index: web/webapp/src/main/java/ru/javaops/masterjava/webapp/SendServlet.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- web/webapp/src/main/java/ru/javaops/masterjava/webapp/SendServlet.java	(date 1493398337000)
++++ web/webapp/src/main/java/ru/javaops/masterjava/webapp/SendServlet.java	(revision )
+@@ -23,7 +23,7 @@
+         String body = req.getParameter("body");
+         String groupResult;
+         try {
+-            groupResult = MailWSClient.sendBulk(MailWSClient.split(users), subject, body).toString();
++            groupResult = MailWSClient.sendBulk(MailWSClient.split(users), subject, body, null).toString();
+         } catch (WebStateException e) {
+             groupResult = e.toString();
+         }
