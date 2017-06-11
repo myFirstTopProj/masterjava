@@ -15,13 +15,13 @@ public class MailServiceExecutor {
     private static final String INTERRUPTED_BY_TIMEOUT = "+++ Interrupted by timeout";
     private static final String INTERRUPTED_EXCEPTION = "+++ InterruptedException";
 
-    private final ExecutorService mailExecutor = Executors.newFixedThreadPool(8);
+    private static final ExecutorService mailExecutor = Executors.newFixedThreadPool(8);
 
-    public GroupResult sendIndividual(final Set<Addressee> addressees, final String subject, final String body) throws Exception {
+    public static GroupResult sendBulk(final Set<Addressee> addressees, final String subject, final String body) {
         final CompletionService<MailResult> completionService = new ExecutorCompletionService<>(mailExecutor);
 
         List<Future<MailResult>> futures = StreamEx.of(addressees)
-                .map(addressee -> completionService.submit(() -> MailSender.sendBulk(addressee, subject, body)))
+                .map(addressee -> completionService.submit(() -> MailSender.sendTo(addressee, subject, body)))
                 .toList();
 
         return new Callable<GroupResult>() {

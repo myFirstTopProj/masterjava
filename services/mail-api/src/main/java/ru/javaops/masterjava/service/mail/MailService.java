@@ -13,9 +13,16 @@ import java.util.Set;
 public interface MailService {
 
     @WebMethod
-    void sendMail(
+    String sendToGroup(
             @WebParam(name = "to") Set<Addressee> to,
             @WebParam(name = "cc") Set<Addressee> cc,
             @WebParam(name = "subject") String subject,
             @WebParam(name = "body") String body);
+
+    @WebMethod
+    GroupResult sendBulk(
+            @WebParam(name = "to") Set<Addressee> to,
+            @WebParam(name = "subject") String subject,
+            @WebParam(name = "body") String body);
+
 }

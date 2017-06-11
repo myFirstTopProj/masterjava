@@ -4,10 +4,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * gkislin
- * 15.11.2016
- */
 @Data
 @AllArgsConstructor
 @NoArgsConstructor

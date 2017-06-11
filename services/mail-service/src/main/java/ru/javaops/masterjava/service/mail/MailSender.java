@@ -19,12 +19,12 @@ import java.util.Set;
 public class MailSender {
     private static final MailCaseDao MAIL_CASE_DAO = DBIProvider.getDao(MailCaseDao.class);
 
-    static MailResult sendBulk(Addressee to, String subject, String body) {
-        val state = sendBulk(ImmutableSet.of(to), ImmutableSet.of(), subject, body);
+    static MailResult sendTo(Addressee to, String subject, String body) {
+        val state = sendToGroup(ImmutableSet.of(to), ImmutableSet.of(), subject, body);
         return new MailResult(to.getEmail(), state);
     }
 
-    static String sendBulk(Set<Addressee> to, Set<Addressee> cc, String subject, String body) {
+    static String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body) {
         log.info("Send mail to \'" + to + "\' cc \'" + cc + "\' subject \'" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
         String state = MailResult.OK;
         try {

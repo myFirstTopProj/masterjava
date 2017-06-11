@@ -7,7 +7,14 @@ import java.util.Set;
 //          , wsdlLocation = "WEB-INF/wsdl/mailService.wsdl"
 )
 public class MailServiceImpl implements MailService {
-    public void sendMail(Set<Addressee> to, Set<Addressee> cc, String subject, String body) {
-        MailSender.sendBulk(to, cc, subject, body);
+
+    @Override
+    public String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body) {
+        return MailSender.sendToGroup(to, cc, subject, body);
+    }
+
+    @Override
+    public GroupResult sendBulk(Set<Addressee> to, String subject, String body) {
+        return MailServiceExecutor.sendBulk(to, subject, body);
     }
 }
