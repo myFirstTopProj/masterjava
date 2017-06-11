@@ -1,6 +1,7 @@
 package ru.javaops.masterjava.service.mail;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.mail.EmailException;
@@ -8,7 +9,7 @@ import ru.javaops.masterjava.persist.DBIProvider;
 import ru.javaops.masterjava.service.mail.persist.MailCase;
 import ru.javaops.masterjava.service.mail.persist.MailCaseDao;
 
-import java.util.List;
+import java.util.Set;
 
 /**
  * gkislin
@@ -18,9 +19,14 @@ import java.util.List;
 public class MailSender {
     private static final MailCaseDao MAIL_CASE_DAO = DBIProvider.getDao(MailCaseDao.class);
 
-    static void sendMail(List<Addressee> to, List<Addressee> cc, String subject, String body) {
-        log.info("Send mail to \'" + to + "\' cc \'" + cc + "\' subject \'" + subject + (log.isDebugEnabled()?"\nbody=" + body:""));
-        String state = "OK";
+    static MailResult sendBulk(Addressee to, String subject, String body) {
+        val state = sendBulk(ImmutableSet.of(to), ImmutableSet.of(), subject, body);
+        return new MailResult(to.getEmail(), state);
+    }
+
+    static String sendBulk(Set<Addressee> to, Set<Addressee> cc, String subject, String body) {
+        log.info("Send mail to \'" + to + "\' cc \'" + cc + "\' subject \'" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
+        String state = MailResult.OK;
         try {
             val email = MailConfig.createHtmlEmail();
             email.setSubject(subject);
@@ -41,5 +47,6 @@ public class MailSender {
         }
         MAIL_CASE_DAO.insert(MailCase.of(to, cc, subject, body, state));
         log.info("Sent with state: " + state);
+        return state;
     }
 }

@@ -30,4 +30,17 @@ public class Addressee {
     public String toString() {
         return name == null ? email : name + " <" + email + '>';
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Addressee addressee = (Addressee) o;
+        return email.equals(addressee.email);
+    }
+
+    @Override
+    public int hashCode() {
+        return email.hashCode();
+    }
 }
