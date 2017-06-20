@@ -1,10 +1,12 @@
 package ru.javaops.masterjava.service.mail;
 
 import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+@Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class GroupResult {
@@ -15,7 +17,7 @@ public class GroupResult {
     @Override
     public String toString() {
         return "Success: " + success + '\n' +
-                "Failed: " + failed.toString() + '\n' +
-                (failedCause == null ? "" : "Failed cause" + failedCause);
+                (failed == null ? "" : "Failed: " + failed.toString() + '\n') +
+                (failedCause == null ? "" : "Failed cause: " + failedCause);
     }
 }
