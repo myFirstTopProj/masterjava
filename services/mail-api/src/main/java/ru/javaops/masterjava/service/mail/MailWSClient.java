@@ -20,7 +20,7 @@ public class MailWSClient {
     }
 
 
-    public static void sendMail(final Set<Addressee> to, final Set<Addressee> cc, final String subject, final String body) {
+    public static void sendToGroup(final Set<Addressee> to, final Set<Addressee> cc, final String subject, final String body) {
         log.info("Send mail to '" + to + "' cc '" + cc + "' subject '" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
         WS_CLIENT.getPort().sendToGroup(to, cc, subject, body);
     }
