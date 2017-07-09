@@ -5,7 +5,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.io.Resources;
 import lombok.extern.slf4j.Slf4j;
-import ru.javaops.masterjava.web.WsClient;
+import ru.javaops.web.WebStateException;
+import ru.javaops.web.WsClient;
 
 import javax.xml.namespace.QName;
 import java.util.Set;
@@ -23,7 +24,7 @@ public class MailWSClient {
     }
 
 
-    public static String sendToGroup(final Set<Addressee> to, final Set<Addressee> cc, final String subject, final String body) {
+    public static String sendToGroup(final Set<Addressee> to, final Set<Addressee> cc, final String subject, final String body) throws WebStateException {
         log.info("Send mail to '" + to + "' cc '" + cc + "' subject '" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
         String status;
         try {
@@ -31,19 +32,19 @@ public class MailWSClient {
             log.info("Sent with status: " + status);
         } catch (Exception e) {
             log.error("sendToGroup failed", e);
-            status = e.toString();
+            throw WsClient.getWebStateException(e);
         }
         return status;
     }
 
-    public static GroupResult sendBulk(final Set<Addressee> to, final String subject, final String body) {
+    public static GroupResult sendBulk(final Set<Addressee> to, final String subject, final String body) throws WebStateException {
         log.info("Send mail to '" + to + "' subject '" + subject + (log.isDebugEnabled() ? "\nbody=" + body : ""));
         GroupResult result;
         try {
             result = WS_CLIENT.getPort().sendBulk(to, subject, body);
-        } catch (Exception e) {
-            log.error("sendIndividualMails failed", e);
-            result = new GroupResult(e);
+        } catch (WebStateException e) {
+            log.error("sendBulk failed", e);
+            throw WsClient.getWebStateException(e);
         }
         log.info("Sent with result: " + result);
         return result;

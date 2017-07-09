@@ -1,5 +1,7 @@
 package ru.javaops.masterjava.service.mail;
 
+import ru.javaops.web.WebStateException;
+
 import javax.jws.WebService;
 import java.util.Set;
 
@@ -9,12 +11,12 @@ import java.util.Set;
 public class MailServiceImpl implements MailService {
 
     @Override
-    public String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body) {
+    public String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body) throws WebStateException {
         return MailSender.sendToGroup(to, cc, subject, body);
     }
 
     @Override
-    public GroupResult sendBulk(Set<Addressee> to, String subject, String body) {
+    public GroupResult sendBulk(Set<Addressee> to, String subject, String body) throws WebStateException {
         return MailServiceExecutor.sendBulk(to, subject, body);
     }
 }

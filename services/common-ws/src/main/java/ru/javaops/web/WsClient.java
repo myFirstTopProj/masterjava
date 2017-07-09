@@ -1,6 +1,7 @@
-package ru.javaops.masterjava.web;
+package ru.javaops.web;
 
 import com.typesafe.config.Config;
+import ru.javaops.masterjava.ExceptionType;
 import ru.javaops.masterjava.config.Configs;
 
 import javax.xml.namespace.QName;
@@ -36,5 +37,10 @@ public class WsClient<T> {
         Map<String, Object> requestContext = bp.getRequestContext();
         requestContext.put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, endpointAddress);
         return port;
+    }
+
+    public static WebStateException getWebStateException(Exception e) {
+        return (e instanceof WebStateException) ?
+                (WebStateException) e : new WebStateException(ExceptionType.NETWORK, e);
     }
 }

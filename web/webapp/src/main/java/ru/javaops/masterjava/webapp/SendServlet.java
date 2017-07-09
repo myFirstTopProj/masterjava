@@ -1,8 +1,8 @@
 package ru.javaops.masterjava.webapp;
 
 import lombok.extern.slf4j.Slf4j;
-import ru.javaops.masterjava.service.mail.GroupResult;
 import ru.javaops.masterjava.service.mail.MailWSClient;
+import ru.javaops.web.WebStateException;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -21,7 +21,12 @@ public class SendServlet extends HttpServlet {
         String users = req.getParameter("users");
         String subject = req.getParameter("subject");
         String body = req.getParameter("body");
-        GroupResult groupResult = MailWSClient.sendBulk(MailWSClient.split(users), subject, body);
-        resp.getWriter().write(groupResult.toString());
+        String groupResult;
+        try {
+            groupResult = MailWSClient.sendBulk(MailWSClient.split(users), subject, body).toString();
+        } catch (WebStateException e) {
+            groupResult = e.toString();
+        }
+        resp.getWriter().write(groupResult);
     }
 }

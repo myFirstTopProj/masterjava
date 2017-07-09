@@ -19,7 +19,12 @@
         <module>persist</module>
         <module>test</module>
 
-        <module>web</module>
-        <module>services</module>
+        <module>services/common-ws</module>
+        <module>services/mail-api</module>
+        <module>services/mail-service</module>
+
+        <module>web/common-web</module>
+        <module>web/webapp</module>
+        <module>web/export</module>
     </modules>
 </project>
