@@ -15,11 +15,11 @@ public class MailServiceImpl implements MailService {
 
     @Override
     public String sendToGroup(Set<Addressee> to, Set<Addressee> cc, String subject, String body, List<Attach> attaches) throws WebStateException {
-        return MailSender.sendToGroup(to, cc, subject, body);
+        return MailSender.sendToGroup(to, cc, subject, body, attaches);
     }
 
     @Override
     public GroupResult sendBulk(Set<Addressee> to, String subject, String body, List<Attach> attaches) throws WebStateException {
-        return MailServiceExecutor.sendBulk(to, subject, body);
+        return MailServiceExecutor.sendBulk(to, subject, body, attaches);
     }
 }
