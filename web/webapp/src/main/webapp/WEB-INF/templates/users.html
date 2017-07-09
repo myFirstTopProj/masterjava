@@ -31,36 +31,37 @@
             <td th:text="${user.fullName}"></td>
             <td th:utext="${user.email}"></td>
             <td th:text="${user.flag}"></td>
-            <td><input type="checkbox" th:value="|${user.fullName} <${user.email}>|"/></td>
+            <td><input type="checkbox" value="test value" th:value="|${user.fullName} <${user.email}>|"/></td>
         </tr>
         </tbody>
     </table>
     <hr/>
-    <p>
-        <input id="subject" placeholder="subject" size="30">
-    </p>
-    <p>
-        <textarea id="body" placeholder="mail body" cols=75 rows=5></textarea><br/>
-    </p>
-    <p>
-        <button type="button" onclick="send()">Send</button>
-    </p>
-    <div id="result"></div>
+    <form enctype="multipart/form-data" action="send" method=post
+          target="result" onsubmit="window.open('','result','width=800,height=400,menubar=no');">
+
+        <input id="users" name="users" hidden="hidden">
+
+        <p>
+            <input id="subject" name="subject" placeholder="Subject" size="30">
+        </p>
+        <p>
+            <textarea id="body" name="body" placeholder="Mail body" cols=75 rows=5></textarea><br/>
+        </p>
+        <p>
+            <input type="file" name="attach" id="attach"/>
+        </p>
+        <p>
+            <button type="submit" onclick="fillUsers()">Send</button>
+        </p>
+    </form>
 </section>
 <script type="text/javascript">
-    function send() {
-        $('#result').html("Sending ...");
+    function fillUsers() {
         var users = $("input:checkbox:checked").map(function () {
             return this.value;
         }).get();
-        $.ajax({
-            type: "POST",
-            url: "send",
-            data: "users=" + users + "&subject=" + $("#subject").val() + "&body=" + $("#body").val(),
-            success: function (result) {
-                $('#result').html(result);
-            }
-        });
+        console.log(users);
+        $('#users').val(users);
     }
 </script>
 </body>
