@@ -23,7 +23,7 @@ public class SendServlet extends HttpServlet {
         String body = req.getParameter("body");
         String groupResult;
         try {
-            groupResult = MailWSClient.sendBulk(MailWSClient.split(users), subject, body).toString();
+            groupResult = MailWSClient.sendBulk(MailWSClient.split(users), subject, body, null).toString();
         } catch (WebStateException e) {
             groupResult = e.toString();
         }
