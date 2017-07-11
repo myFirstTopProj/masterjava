@@ -7,9 +7,10 @@ import javax.xml.bind.DatatypeConverter;
 import java.util.List;
 import java.util.Map;
 
+import static com.google.common.net.HttpHeaders.AUTHORIZATION;
+
 @Slf4j
 public class AuthUtil {
-    private static final String AUTHORIZATION = "Authorization";
 
     public static String encodeBasicAuthHeader(String name, String passw) {
         String authString = name + ":" + passw;

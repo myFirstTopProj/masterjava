@@ -25,11 +25,11 @@ import java.util.Map;
  * for better performance over SOAPHandler.
  */
 @Slf4j
-public abstract class SoapLoggingHandler extends SoapBaseHandler {
+public abstract class SoapLoggingHandlers extends SoapBaseHandler {
 
     private final Level loggingLevel;
 
-    protected SoapLoggingHandler(Level loggingLevel) {
+    protected SoapLoggingHandlers(Level loggingLevel) {
         this.loggingLevel = loggingLevel;
     }
 
@@ -116,5 +116,28 @@ public abstract class SoapLoggingHandler extends SoapBaseHandler {
     public boolean handleFault(MessageHandlerContext mhc) {
         HANDLER_MAP.get(loggingLevel).handleFault(mhc);
         return true;
+    }
+
+    public static class ClientHandler extends SoapLoggingHandlers {
+        public ClientHandler(Level loggingLevel) {
+            super(loggingLevel);
+        }
+
+        @Override
+        protected boolean isRequest(boolean isOutbound) {
+            return isOutbound;
+        }
+    }
+
+    public static class ServerHandler extends SoapLoggingHandlers {
+
+        public ServerHandler() {
+            super(Level.INFO);
+        }
+
+        @Override
+        protected boolean isRequest(boolean isOutbound) {
+            return !isOutbound;
+        }
     }
 }
