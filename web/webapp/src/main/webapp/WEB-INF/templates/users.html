@@ -39,6 +39,7 @@
     <input type="radio" name="transport" onchange="setFormAttr('SOAP')" checked>SOAP<br>
     <input type="radio" name="transport" onchange="setFormAttr('REST')">REST<br>
     <input type="radio" name="transport" onchange="setFormAttr('JMS')">JMS<br>
+    <input type="radio" name="transport" onchange="setFormAttr('AKKA_Typed')">AKKA Typed<br>
 
     <form enctype="multipart/form-data" action="sendSoap" method=post
           target="result" onsubmit="window.open('','result','width=800,height=400,menubar=no');">
@@ -68,6 +69,8 @@
             form.attr("action", '/mail/rest/send');
         } else if (transport === 'JMS') {
             form.attr("action", 'sendJms');
+        } else if (transport === 'AKKA_Typed') {
+            form.attr("action", 'sendAkkaTyped');
         } else {
             alert("Unknown transport");
         }
