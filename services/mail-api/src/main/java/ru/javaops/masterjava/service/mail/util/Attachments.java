@@ -19,26 +19,28 @@ public class Attachments {
     //    http://stackoverflow.com/a/5924019/548473
 
     @AllArgsConstructor
-    private static class InputStreamDataSource implements DataSource {
+    private static class InputStreamDataSource implements ProxyDataSource {
         private InputStream inputStream;
 
         @Override
         public InputStream getInputStream() throws IOException {
             return new CloseShieldInputStream(inputStream);
         }
+    }
 
+    public interface ProxyDataSource extends DataSource {
         @Override
-        public OutputStream getOutputStream() throws IOException {
+        default OutputStream getOutputStream() throws IOException {
             throw new UnsupportedOperationException("Not implemented");
         }
 
         @Override
-        public String getContentType() {
+        default String getContentType() {
             return "application/octet-stream";
         }
 
         @Override
-        public String getName() {
+        default String getName() {
             return "";
         }
     }
