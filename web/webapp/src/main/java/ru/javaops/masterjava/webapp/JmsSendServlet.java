@@ -1,20 +1,25 @@
 package ru.javaops.masterjava.webapp;
 
 import lombok.extern.slf4j.Slf4j;
+import ru.javaops.masterjava.service.mail.util.MailUtils;
+import ru.javaops.masterjava.service.mail.util.MailUtils.MailObject;
 
 import javax.jms.*;
 import javax.naming.InitialContext;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
+import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.Part;
 import java.io.IOException;
 import java.lang.IllegalStateException;
 
 @WebServlet("/sendJms")
 @Slf4j
+@MultipartConfig
 public class JmsSendServlet extends HttpServlet {
     private Connection connection;
     private Session session;
@@ -48,18 +53,24 @@ public class JmsSendServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         req.setCharacterEncoding("UTF-8");
-        String users = req.getParameter("users");
-        String subject = req.getParameter("subject");
-        String body = req.getParameter("body");
-        resp.getWriter().write(sendJms(users, subject, body));
+        Part filePart = req.getPart("attach");
+
+        MailObject mailObject = MailUtils.getMailObject(
+                req.getParameter("users"),
+                req.getParameter("subject"),
+                req.getParameter("body"),
+                filePart == null ? null : filePart.getSubmittedFileName(),
+                filePart == null ? null : filePart.getInputStream());
+
+        resp.getWriter().write(sendJms(mailObject));
     }
 
-    private synchronized String sendJms(String users, String subject, String body) {
+    private synchronized String sendJms(MailObject mailObject) {
         String msg;
         try {
-            TextMessage testMessage = session.createTextMessage();
-            testMessage.setText(subject);
-            producer.send(testMessage);
+            ObjectMessage om = session.createObjectMessage();
+            om.setObject(mailObject);
+            producer.send(om);
             msg = "Successfully sent message.";
             log.info(msg);
         } catch (Exception e) {

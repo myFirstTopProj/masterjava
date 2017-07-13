@@ -9,8 +9,7 @@ import org.hibernate.validator.constraints.NotBlank;
 import ru.javaops.masterjava.service.mail.Attach;
 import ru.javaops.masterjava.service.mail.GroupResult;
 import ru.javaops.masterjava.service.mail.MailServiceExecutor;
-import ru.javaops.masterjava.service.mail.MailWSClient;
-import ru.javaops.masterjava.service.mail.util.Attachments;
+import ru.javaops.masterjava.service.mail.util.MailUtils;
 import ru.javaops.web.WebStateException;
 
 import javax.activation.DataHandler;
@@ -48,11 +47,11 @@ public class MailRS {
                 String utf8name = new String(attachName.getBytes("ISO8859_1"), "UTF-8");
                 BodyPartEntity bodyPartEntity = ((BodyPartEntity) attachBodyPart.getEntity());
 
-                attaches = ImmutableList.of(new Attach(utf8name, new DataHandler((Attachments.ProxyDataSource) bodyPartEntity::getInputStream)));
+                attaches = ImmutableList.of(new Attach(utf8name, new DataHandler((MailUtils.ProxyDataSource) bodyPartEntity::getInputStream)));
             } catch (UnsupportedEncodingException e) {
                 throw new IllegalStateException(e);
             }
         }
-        return MailServiceExecutor.sendBulk(MailWSClient.split(users), subject, body, attaches);
+        return MailServiceExecutor.sendBulk(MailUtils.split(users), subject, body, attaches);
     }
 }

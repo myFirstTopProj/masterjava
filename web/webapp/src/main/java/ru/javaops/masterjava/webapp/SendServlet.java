@@ -4,7 +4,7 @@ import com.google.common.collect.ImmutableList;
 import lombok.extern.slf4j.Slf4j;
 import ru.javaops.masterjava.service.mail.Attach;
 import ru.javaops.masterjava.service.mail.MailWSClient;
-import ru.javaops.masterjava.service.mail.util.Attachments;
+import ru.javaops.masterjava.service.mail.util.MailUtils;
 import ru.javaops.web.WebStateException;
 
 import javax.servlet.ServletException;
@@ -34,11 +34,11 @@ public class SendServlet extends HttpServlet {
         if (filePart == null) {
             attaches = ImmutableList.of();
         } else {
-            attaches = ImmutableList.of(Attachments.getAttach(filePart.getName(), filePart.getInputStream()));
+            attaches = ImmutableList.of(MailUtils.getAttach(filePart.getSubmittedFileName(), filePart.getInputStream()));
         }
         String groupResult;
         try {
-            groupResult = MailWSClient.sendBulk(MailWSClient.split(users), subject, body, attaches).toString();
+            groupResult = MailWSClient.sendBulk(MailUtils.split(users), subject, body, attaches).toString();
         } catch (WebStateException e) {
             groupResult = e.toString();
         }
