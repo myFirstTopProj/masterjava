@@ -4,9 +4,13 @@ import akka.actor.ActorSystem;
 import akka.actor.TypedActor;
 import akka.actor.TypedProps;
 import akka.japi.Creator;
+import akka.util.Timeout;
 import lombok.extern.slf4j.Slf4j;
 import ru.javaops.masterjava.config.Configs;
 import scala.concurrent.ExecutionContext;
+import scala.concurrent.duration.Duration;
+
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class AkkaActivator {
@@ -25,7 +29,8 @@ public class AkkaActivator {
 
     public <T> void startTypedActor(Class<T> typedClass, String name, Creator<T> creator) {
         log.info("Start AKKA typed actor: {}", name);
-        TypedActor.get(system).typedActorOf(new TypedProps<T>(typedClass, creator), name);
+        TypedActor.get(system).typedActorOf(
+                new TypedProps<T>(typedClass, creator).withTimeout(new Timeout(Duration.create(20, TimeUnit.SECONDS))), name);
     }
 
     public <T> T getTypedRef(Class<T> typedClass, String path) {
