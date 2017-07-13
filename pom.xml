@@ -19,6 +19,7 @@
         <module>persist</module>
         <module>test</module>
 
+        <module>services/akka-remote</module>
         <module>services/common-ws</module>
         <module>services/mail-api</module>
         <module>services/mail-service</module>
