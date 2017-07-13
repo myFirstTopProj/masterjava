@@ -22,6 +22,11 @@ public class MailServiceExecutor {
 
     private static final ExecutorService mailExecutor = Executors.newFixedThreadPool(8);
 
+    public static GroupResult sendBulk(final MailObject mailObject) {
+        return sendBulk(MailUtils.split(mailObject.getUsers()),
+                mailObject.getSubject(), mailObject.getBody(), MailUtils.getAttaches(mailObject.getAttaches()));
+    }
+
     public static GroupResult sendBulk(final Set<Addressee> addressees, final String subject, final String body, List<Attach> attaches) {
         final CompletionService<MailResult> completionService = new ExecutorCompletionService<>(mailExecutor);
 
@@ -71,9 +76,7 @@ public class MailServiceExecutor {
 
     public static scala.concurrent.Future<GroupResult> sendAsyncWithReply(MailObject mailObject, ExecutionContext ec) {
         // http://doc.akka.io/docs/akka/current/java/futures.html
-        return Futures.future(
-                () -> sendBulk(MailUtils.split(mailObject.getUsers()), mailObject.getSubject(), mailObject.getBody(), MailUtils.getAttaches(mailObject.getAttaches())),
-                ec);
+        return Futures.future(() -> sendBulk(mailObject), ec);
     }
 
     public static void sendAsync(MailObject mailObject) {

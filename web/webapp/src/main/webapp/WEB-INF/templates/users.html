@@ -36,10 +36,11 @@
         </tbody>
     </table>
     <hr/>
-    <input type="radio" name="transport" onchange="setFormAttr('SOAP')" checked>SOAP<br>
-    <input type="radio" name="transport" onchange="setFormAttr('REST')">REST<br>
-    <input type="radio" name="transport" onchange="setFormAttr('JMS')">JMS<br>
-    <input type="radio" name="transport" onchange="setFormAttr('AKKA_Typed')">AKKA Typed<br>
+    <input type="radio" name="transport" onchange="setAction('sendSoap')" checked>SOAP<br>
+    <input type="radio" name="transport" onchange="setAction('/mail/rest/send')">REST<br>
+    <input type="radio" name="transport" onchange="setAction('sendJms')">JMS<br>
+    <input type="radio" name="transport" onchange="setAction('sendAkkaTyped')">AKKA Typed<br>
+    <input type="radio" name="transport" onchange="setAction('sendAkkaActor')">AKKA Untyped<br>
 
     <form enctype="multipart/form-data" action="sendSoap" method=post
           target="result" onsubmit="window.open('','result','width=800,height=400,menubar=no');">
@@ -61,19 +62,8 @@
     </form>
 </section>
 <script type="text/javascript">
-    function setFormAttr(transport) {
-        var form = $("form");
-        if (transport === 'SOAP') {
-            form.attr("action", 'sendSoap');
-        } else if (transport === 'REST') {
-            form.attr("action", '/mail/rest/send');
-        } else if (transport === 'JMS') {
-            form.attr("action", 'sendJms');
-        } else if (transport === 'AKKA_Typed') {
-            form.attr("action", 'sendAkkaTyped');
-        } else {
-            alert("Unknown transport");
-        }
+    function setAction(action) {
+        $("form").attr("action", action);
     }
 
     function fillUsers() {
