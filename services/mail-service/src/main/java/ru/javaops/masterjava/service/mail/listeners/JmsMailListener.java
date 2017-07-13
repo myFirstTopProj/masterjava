@@ -1,4 +1,4 @@
-package ru.javaops.masterjava.service.mail.jms;
+package ru.javaops.masterjava.service.mail.listeners;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.activemq.ActiveMQConnectionFactory;
@@ -13,7 +13,7 @@ import javax.servlet.annotation.WebListener;
 
 @WebListener
 @Slf4j
-public class JmsListener implements ServletContextListener {
+public class JmsMailListener implements ServletContextListener {
     private Thread listenerThread = null;
     private QueueConnection connection;
 

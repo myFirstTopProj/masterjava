@@ -40,7 +40,7 @@
     <input type="radio" name="transport" onchange="setFormAttr('REST')">REST<br>
     <input type="radio" name="transport" onchange="setFormAttr('JMS')">JMS<br>
 
-    <form enctype="multipart/form-data" action="send" method=post
+    <form enctype="multipart/form-data" action="sendSoap" method=post
           target="result" onsubmit="window.open('','result','width=800,height=400,menubar=no');">
 
         <input id="users" name="users" hidden="hidden">
@@ -63,11 +63,13 @@
     function setFormAttr(transport) {
         var form = $("form");
         if (transport === 'SOAP') {
-            form.attr("action", 'send');
-        } else if(transport === 'REST'){
+            form.attr("action", 'sendSoap');
+        } else if (transport === 'REST') {
             form.attr("action", '/mail/rest/send');
-        } else {
+        } else if (transport === 'JMS') {
             form.attr("action", 'sendJms');
+        } else {
+            alert("Unknown transport");
         }
     }
 
