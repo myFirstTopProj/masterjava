@@ -6,7 +6,6 @@ import com.google.common.collect.Iterables;
 import com.sun.istack.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.CloseShieldInputStream;
 import ru.javaops.masterjava.service.mail.Addressee;
 import ru.javaops.masterjava.service.mail.Attach;
@@ -14,7 +13,10 @@ import ru.javaops.masterjava.service.mail.Attach;
 import javax.activation.DataHandler;
 import javax.activation.DataSource;
 import java.io.*;
+import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class MailUtils {
 
@@ -29,16 +31,12 @@ public class MailUtils {
         private @NotNull String users;
         private String subject;
         private @NotNull String body;
-        private String attachName;
-        private byte[] attachData;
+        //  http://stackoverflow.com/questions/521171/a-java-collection-of-value-pairs-tuples
+        private List<SimpleImmutableEntry<String, byte[]>> attaches;
     }
 
-    public static MailObject getMailObject(String users, String subject, String body, String name, InputStream is) {
-        try {
-            return new MailObject(users, subject, body, name, is == null ? null : IOUtils.toByteArray(is));
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+    public static List<Attach> getAttaches(List<SimpleImmutableEntry<String, byte[]>> attaches) {
+        return attaches.stream().map(a -> getAttach(a.getKey(), a.getValue())).collect(Collectors.toList());
     }
 
     public static Attach getAttach(String name, byte[] attachData) {

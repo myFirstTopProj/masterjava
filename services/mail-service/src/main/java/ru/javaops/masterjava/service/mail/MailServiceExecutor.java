@@ -1,6 +1,5 @@
 package ru.javaops.masterjava.service.mail;
 
-import com.google.common.collect.ImmutableList;
 import lombok.extern.slf4j.Slf4j;
 import one.util.streamex.StreamEx;
 import ru.javaops.masterjava.service.mail.util.MailUtils;
@@ -73,8 +72,7 @@ public class MailServiceExecutor {
         addressees.forEach(addressee ->
                 mailExecutor.submit(() -> {
                     try {
-                        MailSender.sendTo(addressee, mailObject.getSubject(), mailObject.getBody(),
-                                ImmutableList.of(MailUtils.getAttach(mailObject.getAttachName(), mailObject.getAttachData())));
+                        MailSender.sendTo(addressee, mailObject.getSubject(), mailObject.getBody(), MailUtils.getAttaches(mailObject.getAttaches()));
                     } catch (WebStateException e) {
                         // already logged
                     }
